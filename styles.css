@@ -209,6 +209,33 @@ input:focus, textarea:focus, select:focus {
 .row-edit:hover { color: var(--accent-2); }
 .empty { padding: 3rem 1rem; text-align: center; color: var(--muted); }
 
+/* ---------------- Volume control (top-left, every view) ---------------- */
+.volume-control {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 45; /* above the fullscreen view (40), below modals (50) */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+}
+.vol-icon {
+  font-size: 1rem;
+  line-height: 1;
+  width: 1.6rem;
+  text-align: center;
+}
+.vol-slider {
+  width: 110px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* ---------------- Top-right controls ---------------- */
 .top-controls {
   position: fixed;
@@ -342,7 +369,7 @@ input:focus, textarea:focus, select:focus {
 .detail-desc { max-width: 680px; line-height: 1.6; color: #d8d8e6; font-size: 1.05rem; }
 .detail-hint {
   position: absolute;
-  top: 1.4rem; left: 1.6rem;
+  top: 4.2rem; left: 1.1rem; /* sits just below the volume control */
   z-index: 3;
   transition: opacity 0.6s ease;
   pointer-events: auto;

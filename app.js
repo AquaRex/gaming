@@ -33,9 +33,22 @@ const state = {
   activeGenres: [],
   sort: { key: 'title', dir: 'asc' },
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
-  settings: { ...DEFAULT_SETTINGS },
+  // Shared (from DB): just which video the landing-page audio comes from.
+  settings: { main_audio_url: DEFAULT_SETTINGS.main_audio_url },
+  // Per-person (from this browser): two independent volumes, never sent to DB.
+  volume: { main: loadVolume('main'), detail: loadVolume('detail') },
   loading: true,
   error: null,
+}
+
+// Volume is a client-side preference kept in localStorage (0–100).
+function loadVolume(kind) {
+  const v = Number(localStorage.getItem(`gaming.vol.${kind}`))
+  if (Number.isFinite(v) && v >= 0 && v <= 100) return v
+  return kind === 'main' ? DEFAULT_SETTINGS.main_audio_volume : DEFAULT_SETTINGS.detail_volume
+}
+function saveVolume(kind, v) {
+  localStorage.setItem(`gaming.vol.${kind}`, String(v))
 }
 
 // ---- Small DOM helpers ----
@@ -184,13 +197,7 @@ async function deleteGame(id) {
 async function fetchSettings() {
   try {
     const { data } = await db.from('settings').select('*').eq('id', 1).maybeSingle()
-    if (data) {
-      state.settings = {
-        main_audio_url: data.main_audio_url ?? '',
-        main_audio_volume: data.main_audio_volume ?? DEFAULT_SETTINGS.main_audio_volume,
-        detail_volume: data.detail_volume ?? DEFAULT_SETTINGS.detail_volume,
-      }
-    }
+    if (data) state.settings = { main_audio_url: data.main_audio_url ?? '' }
   } catch {
     /* table missing or offline — keep defaults */
   }
@@ -265,7 +272,7 @@ function startMainAudio() {
       },
       events: {
         onReady: (e) => {
-          e.target.setVolume(state.settings.main_audio_volume)
+          e.target.setVolume(state.volume.main)
           e.target.playVideo()
           if (audioUnlocked) e.target.unMute() // play with sound once unlocked
         },
@@ -281,7 +288,7 @@ function unlockAudio() {
   audioUnlocked = true
   if (mainAudioPlayer && mainAudioPlayer.unMute) {
     mainAudioPlayer.unMute()
-    mainAudioPlayer.setVolume(state.settings.main_audio_volume)
+    mainAudioPlayer.setVolume(state.volume.main)
     mainAudioPlayer.playVideo()
   }
 }
@@ -301,6 +308,61 @@ function setMainAudioPaused(paused) {
   if (!mainAudioPlayer || !mainAudioPlayer.pauseVideo) return
   if (paused) mainAudioPlayer.pauseVideo()
   else if (audioUnlocked) mainAudioPlayer.playVideo()
+}
+
+/* ============================================================
+   Volume control (always visible, on every view)
+   On the list it drives the background audio; on a game's
+   fullscreen view it drives that trailer. Two separate volumes.
+   ============================================================ */
+const volPrev = { main: state.volume.main || 25, detail: state.volume.detail || 25 }
+
+// Which audio the slider targets right now depends on the current view.
+function currentVolKind() {
+  return $('#detail').classList.contains('hidden') ? 'main' : 'detail'
+}
+function applyVolume(kind, v) {
+  const player = kind === 'main' ? mainAudioPlayer : detailPlayer
+  if (player && player.setVolume) player.setVolume(v)
+}
+function volIcon(v) {
+  return v === 0 ? '🔇' : v < 50 ? '🔉' : '🔊'
+}
+
+function renderVolumeControl() {
+  const host = $('#volumeControl')
+  host.innerHTML = ''
+  const icon = el('button', { class: 'vol-icon', title: 'Mute / unmute' })
+  const slider = el('input', { type: 'range', min: '0', max: '100', class: 'vol-slider' })
+
+  const sync = () => {
+    const v = state.volume[currentVolKind()]
+    slider.value = String(v)
+    icon.textContent = volIcon(v)
+  }
+  const set = (v) => {
+    const kind = currentVolKind()
+    state.volume[kind] = v
+    if (v > 0) volPrev[kind] = v
+    saveVolume(kind, v)
+    applyVolume(kind, v)
+    icon.textContent = volIcon(v)
+  }
+  slider.addEventListener('input', () => set(Number(slider.value)))
+  icon.addEventListener('click', () => {
+    const kind = currentVolKind()
+    set(state.volume[kind] > 0 ? 0 : volPrev[kind] || 25)
+    slider.value = String(state.volume[kind])
+  })
+
+  host.append(icon, slider)
+  host._sync = sync
+  sync()
+}
+// Update the slider to reflect the active view's volume.
+function syncVolumeUI() {
+  const host = $('#volumeControl')
+  if (host && host._sync) host._sync()
 }
 
 /* ============================================================
@@ -478,7 +540,7 @@ function openDetail(game) {
         events: {
           onReady: (e) => {
             e.target.getIframe().classList.add('detail-video')
-            e.target.setVolume(state.settings.detail_volume)
+            e.target.setVolume(state.volume.detail)
             e.target.playVideo()
           },
         },
@@ -501,6 +563,7 @@ function openDetail(game) {
   host.addEventListener('mousemove', wake)
   host.addEventListener('touchstart', wake)
   wake()
+  syncVolumeUI() // slider now controls this trailer's volume
 }
 
 function closeDetail() {
@@ -518,6 +581,7 @@ function closeDetail() {
   }
   host.innerHTML = '' // stops the trailer audio/video
   setMainAudioPaused(false) // resume the landing-page soundtrack
+  syncVolumeUI() // slider goes back to controlling the background audio
 }
 
 /* ============================================================
@@ -577,16 +641,6 @@ function openSettings() {
     audioUrl.addEventListener('input', refreshThumb)
     refreshThumb()
 
-    // Volume sliders with a live read-out.
-    const slider = (value) => {
-      const out = el('span', { class: 'hint', style: 'min-width:3ch' }, `${value}%`)
-      const input = el('input', { type: 'range', min: '0', max: '100', value: String(value) })
-      input.addEventListener('input', () => { out.textContent = `${input.value}%` })
-      return { row: el('div', { class: 'field-row', style: 'align-items:center' }, input, out), input }
-    }
-    const mainVol = slider(s.main_audio_volume)
-    const detailVol = slider(s.detail_volume)
-
     const errorText = el('div', { class: 'error-text hidden' })
     const showError = (msg) => { errorText.textContent = msg; errorText.classList.remove('hidden') }
 
@@ -597,12 +651,8 @@ function openSettings() {
       saveBtn.disabled = true
       errorText.classList.add('hidden')
       try {
-        await saveSettings({
-          main_audio_url: url || null,
-          main_audio_volume: Number(mainVol.input.value),
-          detail_volume: Number(detailVol.input.value),
-        })
-        restartMainAudio() // apply the new soundtrack/volume immediately
+        await saveSettings({ main_audio_url: url || null })
+        restartMainAudio() // apply the new soundtrack immediately
         close()
       } catch (err) {
         showError(err.message)
@@ -613,9 +663,7 @@ function openSettings() {
     modal.append(
       el('h2', {}, 'Settings'),
       field('Landing-page audio (YouTube URL)', audioUrl, thumb,
-        el('div', { class: 'hint' }, 'Background visuals stay as random trailers from the list; this is just the soundtrack.')),
-      field('Landing audio volume', mainVol.row),
-      field('Game trailer starting volume', detailVol.row),
+        el('div', { class: 'hint' }, 'Background visuals stay as random trailers from the list; this is just the soundtrack. Volume is set per-person with the slider on screen.')),
       errorText,
       el('div', { class: 'modal-actions' },
         el('span'),
@@ -797,5 +845,6 @@ $('#search').addEventListener('input', (e) => {
   renderRows()
 })
 
+renderVolumeControl()
 reload()
 fetchSettings().then(startMainAudio)

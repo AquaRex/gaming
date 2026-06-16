@@ -39,14 +39,13 @@ create policy "public delete" on public.games for delete using (true);
 
 -- ============================================================
 -- Site settings — a single shared row (id = 1) editable from the
--- in-app Settings tab (landing-page audio video + volumes).
+-- in-app Settings tab. Only the chosen landing-page audio video is
+-- shared here; volume is per-person and lives in the browser, not the DB.
 -- ============================================================
 create table if not exists public.settings (
-  id                integer primary key default 1,
-  main_audio_url    text,
-  main_audio_volume integer not null default 25,
-  detail_volume     integer not null default 25,
-  updated_at        timestamptz not null default now(),
+  id             integer primary key default 1,
+  main_audio_url text,
+  updated_at     timestamptz not null default now(),
   constraint settings_single_row check (id = 1)
 );
 
