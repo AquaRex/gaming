@@ -187,11 +187,13 @@ input:focus, textarea:focus, select:focus {
   border-top: 1px solid rgba(255, 255, 255, 0.04);
   transition: background 0.15s ease;
   cursor: pointer;
+  padding-top: 1.15rem;
+  padding-bottom: 1.15rem;
 }
 .game-row:hover { background: rgba(124, 92, 255, 0.08); }
-.game-title { font-weight: 650; display: flex; align-items: center; gap: 0.7rem; }
+.game-title { font-weight: 650; display: flex; align-items: center; gap: 0.8rem; }
 .game-title img {
-  width: 46px; height: 30px; object-fit: cover; border-radius: 6px;
+  width: 72px; height: 41px; object-fit: cover; border-radius: 6px;
   background: #222; flex: none;
 }
 .game-genre { color: var(--muted); font-size: 0.9rem; }

@@ -463,9 +463,10 @@ function renderRows() {
     const editBtn = state.isAdmin
       ? el('button', { class: 'row-edit', title: 'Edit', onclick: (e) => { e.stopPropagation(); openGameForm(game) } }, '✎')
       : el('span')
+    const thumb = thumbnailUrl(game.trailer_url) || (game.images && game.images[0]) || null
     host.append(el('div', { class: 'game-row', onclick: () => openDetail(game) },
       el('div', { class: 'game-title' },
-        game.images && game.images[0] ? el('img', { src: game.images[0], alt: '' }) : null,
+        thumb ? el('img', { src: thumb, alt: '' }) : null,
         game.title),
       el('div', { class: 'game-genre' }, game.genre || '—'),
       el('div', { class: 'tag-list' }, (game.platforms || []).map((p) => el('span', { class: 'tag tag-platform' }, p))),
