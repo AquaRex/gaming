@@ -8,7 +8,28 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/bloodmessage)",
       "Bash(curl -s http://localhost:5173/src/main.jsx)",
       "Bash(kill %1)",
-      "Bash(pkill -f \"vite\")"
+      "Bash(pkill -f \"vite\")",
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "Bash(gh run *)",
+      "Bash(curl -s \"https://api.github.com/repos/AquaRex/Gaming/actions/runs?per_page=5\")",
+      "Bash(curl -s -o /tmp/live.html -w \"status=%{http_code} type=%{content_type}\\\\n\" https://hetland.dev/gaming/)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /tmp/live2.html -w \"status=%{http_code} type=%{content_type}\\\\n\" https://aquarex.github.io/Gaming/)",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" https://hetland.dev/Gaming/)",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" https://hetland.dev/gaming/)",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code} -> %{redirect_url}\\\\n\" https://aquarex.github.io/Gaming/)",
+      "Bash(curl -s -o /dev/null -w \"root hetland.dev status=%{http_code}\\\\n\" https://hetland.dev/)",
+      "Bash(curl -s -o /dev/null -w \"/Gaming/favicon.svg=%{http_code}\\\\n\" https://hetland.dev/Gaming/favicon.svg)",
+      "Bash(curl -s -o /dev/null -w \"/gaming/src/main.jsx = %{http_code} \\(type=%{content_type}\\)\\\\n\" https://hetland.dev/gaming/src/main.jsx)",
+      "Bash(curl -s -o /dev/null -w \"/gaming/assets/ = %{http_code}\\\\n\" https://hetland.dev/gaming/assets/)",
+      "Bash(curl -s https://hetland.dev/gaming/)",
+      "Bash(curl -s -w '\\\\nstatus=%{http_code}\\\\n' 'https://fsfagnwonxsmnozapwsd.supabase.co/rest/v1/games?select=id,title&limit=3' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzZmFnbndvbnhzbW5vemFwd3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MjA5MzYsImV4cCI6MjA5NzE5NjkzNn0.IXUNmLCyLG38Iq2K3UegQdCticDsYB52xdKQkKYtiVc' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzZmFnbndvbnhzbW5vemFwd3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MjA5MzYsImV4cCI6MjA5NzE5NjkzNn0.IXUNmLCyLG38Iq2K3UegQdCticDsYB52xdKQkKYtiVc')",
+      "Bash(curl -s -o /dev/null -w 'bucket status=%{http_code}\\\\n' https://fsfagnwonxsmnozapwsd.supabase.co/storage/v1/bucket/game-media -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzZmFnbndvbnhzbW5vemFwd3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MjA5MzYsImV4cCI6MjA5NzE5NjkzNn0.IXUNmLCyLG38Iq2K3UegQdCticDsYB52xdKQkKYtiVc' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzZmFnbndvbnhzbW5vemFwd3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MjA5MzYsImV4cCI6MjA5NzE5NjkzNn0.IXUNmLCyLG38Iq2K3UegQdCticDsYB52xdKQkKYtiVc')",
+      "Bash(rm -rf src public node_modules .github dist)",
+      "Bash(rm -f vite.config.js package.json package-lock.json .env .env.production .env.example dev-server.py)",
+      "Bash(grep -v '^\\\\.git$')",
+      "Bash(node --check app.js)"
     ]
   }
 }

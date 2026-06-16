@@ -1,105 +1,56 @@
 # Gaming
 
-A small, good-looking site for you and your friends to track games to play and
-their release dates. Searchable, filterable, sortable list with blurred trailer
-videos in the background; click a game for a fullscreen trailer page.
+A small, good-looking site for me and my friends to track games to play and when
+they release. Searchable / filterable / sortable list with blurred trailers in
+the background; click a game and it goes fullscreen with its trailer playing.
 
-Built with **React + Vite** and **Supabase** (Postgres + Storage).
+**No build step.** This is plain HTML/CSS/JS. The files in this repo *are* the
+website — GitHub Pages serves them exactly as-is. Open `index.html` through any
+web server and it runs.
 
-> Security is intentionally minimal — this is a private friends-only site. The
-> "admin" password (default `4054`) only hides the edit UI; anyone technical can
-> still write to the database. That's a deliberate trade-off, not a bug.
+## Files
 
-## 1. Set up Supabase
+| File | What it is |
+|------|------------|
+| `index.html` | The page shell + mount points |
+| `styles.css` | All styling |
+| `app.js` | All behaviour (list, search, filters, sort, fullscreen view, admin) |
+| `favicon.svg` | Tab icon |
+| `supabase/schema.sql` | One-time database setup |
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. In **SQL Editor**, paste and run [`supabase/schema.sql`](supabase/schema.sql).
-   It creates the `games` table, opens read/write access, and creates a public
-   `game-media` storage bucket for images.
-3. In **Project Settings → API**, copy the **Project URL** and the **anon public**
-   key.
+## One-time Supabase setup
 
-## 2. Configure the app
+1. In your Supabase project, open **SQL Editor** and run
+   [`supabase/schema.sql`](supabase/schema.sql). It creates the `games` table,
+   opens read/write access (friends-only site, no real auth), and creates a
+   public `game-media` storage bucket for uploaded images.
+2. The project URL + anon key are already filled into `app.js` (top of file).
+   These are public values, which is fine here.
 
-```bash
-cp .env.example .env
-```
+## Run it locally
 
-Edit `.env`:
-
-```
-VITE_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-public-key
-VITE_ADMIN_PASSWORD=4054
-```
-
-## 3. Run
+You can't just double-click `index.html` (the `file://` protocol blocks the
+Supabase request). Serve it with any static server, e.g.:
 
 ```bash
-npm install
-npm run dev
+python3 -m http.server 8000
+# then open http://localhost:8000
 ```
-
-Open http://localhost:5173/gaming/ (note the `/gaming/` base path).
-
-### Test the real GitHub Pages behaviour before pushing
-
-`npm run dev` is best for editing, but it doesn't exercise the `/gaming/` base
-path or the `404.html` deep-link redirect. To preview exactly what GitHub Pages
-will serve:
-
-```bash
-python3 dev-server.py          # builds, then serves at http://127.0.0.1:8000/gaming/
-python3 dev-server.py --open   # also opens a browser
-python3 dev-server.py --no-build --port 9000
-```
-
-It serves the production `dist/` with the same routing rules as GitHub Pages, so
-refreshing on `/gaming/bloodmessage` works just like it will live.
 
 ## Using it
 
-- Click **Admin** (top-right), enter the password to unlock add/edit.
-- **+ Add game** to create one: title, genre, tags, description, release date
-  (with day / month / year / unknown precision), a YouTube trailer URL, and
-  uploaded images.
-- Click any row to open `/<slug>` — the fullscreen trailer. Move the mouse to
-  see the title/description/genre/tags; stop moving and they fade away. **Esc**
-  returns to the list.
-- Sort by clicking a column header in the legend; filter with the genre/tag
-  chips; search across everything.
+- Click **Admin** (top-right), enter the password (**4054**) to unlock editing.
+- **+ Add game**: title, genre, tags, description, a YouTube trailer URL, a fuzzy
+  release date (day / month / year / unknown), and images (upload or paste a URL).
+- Click any row → the game fills the screen with its trailer behind it. Move the
+  mouse to see the title/description/genre/tags; stop and they fade away.
+  **Esc** (or the top-left link) returns to the list.
+- Sort by clicking a column header; filter with the genre/tag chips; search
+  across everything.
 
 ## Deploying (GitHub Pages)
 
-This deploys as a **GitHub Pages project site** served at
-`https://hetland.dev/gaming/`. The config is already wired for that subpath:
-
-- `vite.config.js` → `base: '/gaming/'`
-- `src/main.jsx` → `<BrowserRouter basename="/gaming">`
-- `public/404.html` → `pathSegmentsToKeep = 1`
-
-GitHub Pages has no server-side rewrites, so deep links like
-`/gaming/bloodmessage` are handled with the SPA redirect trick
-([rafgraph/spa-github-pages](https://github.com/rafgraph/spa-github-pages)):
-`404.html` stashes the path in a query string and bounces to `index.html`, where
-a snippet in `<head>` restores it. Clean URLs, no hash.
-
-**To deploy:**
-
-1. Push this repo to GitHub.
-2. Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Push to `main` — [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
-   builds and publishes `dist/` automatically.
-
-The build reads `.env.production` (committed, public values), so CI needs no
-secrets.
-
-> Moving the app to a different path? Change all three values above (e.g. for the
-> domain root use `base: '/'`, `basename="/"`, `pathSegmentsToKeep = 0`).
-
-## Notes on background trailers
-
-The blurred background uses YouTube embeds (muted autoplay, looping). YouTube
-sometimes shows end-screens/branding over embeds — unavoidable with their
-player. If you ever want pixel-perfect backgrounds, upload short clips to the
-`game-media` bucket and swap the iframe for a `<video>` element.
+Just push to the branch GitHub Pages serves (Settings → Pages → "Deploy from a
+branch" → `main` / root). Since these are already plain static files, the live
+site updates with no build. The app uses relative paths, so it works whether
+it's served at the domain root or under a subpath like `hetland.dev/gaming/`.

@@ -2,27 +2,42 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gaming</title>
-    <!-- GitHub Pages SPA: restore the real path that 404.html stashed in the query string. -->
-    <script>
-      (function (l) {
-        if (l.search[1] === '/') {
-          var decoded = l.search
-            .slice(1)
-            .split('&')
-            .map(function (s) {
-              return s.replace(/~and~/g, '&')
-            })
-            .join('?')
-          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash)
-        }
-      })(window.location)
-    </script>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <!-- Blurred trailers cycling behind the list -->
+    <div class="bg-trailers" id="bgTrailers" aria-hidden="true"></div>
+
+    <!-- Admin / login controls (filled in by app.js) -->
+    <div class="top-controls" id="topControls"></div>
+
+    <!-- The list view -->
+    <main class="landing" id="landing">
+      <h1 class="brand">Gaming</h1>
+
+      <div class="search">
+        <input id="search" type="search" placeholder="Search games, genres, tags…" />
+      </div>
+
+      <div class="filter-bar" id="filterBar"></div>
+
+      <div class="list-wrap">
+        <div class="legend" id="legend"></div>
+        <div id="rows"></div>
+      </div>
+    </main>
+
+    <!-- Fullscreen game view (hidden until a game is clicked) -->
+    <div class="detail hidden" id="detail"></div>
+
+    <!-- Modals (login / add-edit) mount here -->
+    <div id="modalRoot"></div>
+
+    <!-- Supabase client, loaded straight from a CDN — no build step -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./app.js"></script>
   </body>
 </html>
