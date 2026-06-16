@@ -29,18 +29,18 @@ web server and it runs.
 
 ### Landing-page soundtrack + volume
 
-These are edited in-app: enter admin mode, click **Settings**. They're stored in
-the shared `settings` table so everyone sees the same values.
+- **Which video is the soundtrack** is shared: enter admin mode → **Settings** →
+  paste a YouTube URL. It's stored in the `settings` table so everyone hears the
+  same track. The blurred background still shows **random** trailers from the
+  list (muted); only the audio comes from this one chosen video. Blank = silent.
+  (Browsers won't autoplay sound until you click/press a key once.)
+- **Volume is per-person and client-side** (saved in your browser, never in the
+  DB). There's no on-screen volume slider — instead, set the volume/mute on any
+  game **trailer** using YouTube's own controls, and that level is remembered and
+  reused for the hidden background music too.
 
-- **Landing-page audio** — a YouTube URL used as the soundtrack. The blurred
-  background still shows **random** trailers from the list (muted); the audio
-  comes from this one chosen video. Blank = silent landing page. (Browsers won't
-  autoplay sound until you click/press a key once — it starts on first
-  interaction.)
-- **Landing audio volume** / **Game trailer starting volume** — 0–100.
-
-The starting defaults (used until the Settings row is saved) live in
-`DEFAULT_SETTINGS` at the top of `app.js`.
+The starting volume default lives in `DEFAULT_SETTINGS.volume` at the top of
+`app.js`.
 
 ## Run it locally
 

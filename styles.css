@@ -64,20 +64,17 @@ input:focus, textarea:focus, select:focus {
   border: 0;
   transition: opacity 1.2s ease;
 }
-/* Small visible YouTube mini-player (the landing-page soundtrack source),
-   with native controls. Tucked in the bottom-left corner. */
-.mini-player {
+/* Hidden background-music player — rendered (so it actually plays) but
+   invisible and non-interactive. No controls; volume follows the trailers. */
+.bg-audio {
   position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  width: 240px;
-  height: 135px;
-  z-index: 5;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  background: #000;
+  left: 0;
+  bottom: 0;
+  width: 160px;
+  height: 90px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .bg-trailers::after {

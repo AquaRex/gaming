@@ -19,8 +19,7 @@ const MEDIA_BUCKET = 'game-media'
 //   *_volume:         0–100.
 const DEFAULT_SETTINGS = {
   main_audio_url: 'https://www.youtube.com/watch?v=PZS85WIejTg',
-  main_audio_volume: 25,
-  detail_volume: 25,
+  volume: 25, // starting client-side volume until the user changes it on a trailer
 }
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -35,8 +34,22 @@ const state = {
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
   // Shared (from DB): just which video the landing-page audio comes from.
   settings: { main_audio_url: DEFAULT_SETTINGS.main_audio_url },
+  // Per-person (this browser only): one volume + mute shared by the background
+  // music and the trailers. Whatever you set on a trailer's YouTube controls
+  // is captured here and carried back to the background music.
+  volume: loadStoredVolume(),
+  muted: localStorage.getItem('gaming.muted') === '1',
   loading: true,
   error: null,
+}
+
+function loadStoredVolume() {
+  const v = Number(localStorage.getItem('gaming.volume'))
+  return Number.isFinite(v) && v >= 0 && v <= 100 ? v : DEFAULT_SETTINGS.volume
+}
+function saveVolumePrefs() {
+  localStorage.setItem('gaming.volume', String(state.volume))
+  localStorage.setItem('gaming.muted', state.muted ? '1' : '0')
 }
 
 // ---- Small DOM helpers ----
@@ -255,33 +268,41 @@ function startMainAudio() {
   const id = youTubeId(state.settings.main_audio_url)
   if (!id) return
 
-  // A small visible YouTube mini-player in the corner — same native controls
-  // (volume, mute, play/pause) as the game pages. Starts muted so it autoplays;
-  // it unmutes on your first interaction (or use its own mute button).
+  // A hidden player — no controls, invisible (but rendered so it still plays).
+  // It's just the background music. Volume follows the client-side setting.
   let mount = document.getElementById('mainAudio')
   if (!mount) {
-    mount = el('div', { id: 'mainAudio', class: 'mini-player' })
+    mount = el('div', { id: 'mainAudio', class: 'bg-audio' })
     document.body.append(mount)
   }
 
   loadYouTubeApi().then((YT) => {
     mainAudioPlayer = new YT.Player('mainAudio', {
-      width: '240',
-      height: '135',
+      width: '160',
+      height: '90',
       videoId: id,
       playerVars: {
-        autoplay: 1, controls: 1, loop: 1, playlist: id,
-        mute: 1, modestbranding: 1, rel: 0, playsinline: 1,
+        autoplay: 1, controls: 0, loop: 1, playlist: id,
+        mute: 1, modestbranding: 1, rel: 0, playsinline: 1, disablekb: 1,
       },
       events: {
         onReady: (e) => {
-          e.target.setVolume(DEFAULT_SETTINGS.main_audio_volume)
+          applyBgVolume()
           e.target.playVideo()
-          if (audioUnlocked) e.target.unMute() // play with sound once unlocked
         },
       },
     })
   })
+}
+
+// Apply the client-side volume/mute to the hidden background player.
+// Stays muted until the first user gesture (browser autoplay policy).
+function applyBgVolume() {
+  const p = mainAudioPlayer
+  if (!p || !p.setVolume) return
+  p.setVolume(state.volume)
+  if (audioUnlocked && !state.muted) p.unMute()
+  else p.mute()
 }
 
 // Browsers block autoplaying sound until the user interacts; unmute on the
@@ -289,8 +310,8 @@ function startMainAudio() {
 function unlockAudio() {
   if (audioUnlocked) return
   audioUnlocked = true
-  if (mainAudioPlayer && mainAudioPlayer.unMute) {
-    mainAudioPlayer.unMute()
+  if (mainAudioPlayer && mainAudioPlayer.playVideo) {
+    applyBgVolume()
     mainAudioPlayer.playVideo()
   }
 }
@@ -308,8 +329,12 @@ function restartMainAudio() {
 
 function setMainAudioPaused(paused) {
   if (!mainAudioPlayer || !mainAudioPlayer.pauseVideo) return
-  if (paused) mainAudioPlayer.pauseVideo()
-  else if (audioUnlocked) mainAudioPlayer.playVideo()
+  if (paused) {
+    mainAudioPlayer.pauseVideo()
+  } else if (audioUnlocked) {
+    applyBgVolume() // pick up any volume/mute change made on a trailer
+    mainAudioPlayer.playVideo()
+  }
 }
 
 /* ============================================================
@@ -445,6 +470,7 @@ function render() {
    ============================================================ */
 let idleTimer = null
 let detailPlayer = null
+let detailVolPoll = null
 function openDetail(game) {
   const host = $('#detail')
   const id = youTubeId(game.trailer_url)
@@ -487,8 +513,27 @@ function openDetail(game) {
         events: {
           onReady: (e) => {
             e.target.getIframe().classList.add('detail-video')
-            e.target.setVolume(DEFAULT_SETTINGS.detail_volume)
+            // Start at the shared client-side volume/mute…
+            e.target.setVolume(state.volume)
+            if (state.muted) e.target.mute()
+            else e.target.unMute()
             e.target.playVideo()
+            // …and capture whatever the user changes on the native controls,
+            // so it carries back to the background music.
+            clearInterval(detailVolPoll)
+            detailVolPoll = setInterval(() => {
+              try {
+                const v = Math.round(e.target.getVolume())
+                const m = e.target.isMuted()
+                if (v !== state.volume || m !== state.muted) {
+                  state.volume = v
+                  state.muted = m
+                  saveVolumePrefs()
+                }
+              } catch {
+                /* player not ready */
+              }
+            }, 600)
           },
         },
       })
@@ -521,12 +566,13 @@ function closeDetail() {
     host.removeEventListener('touchstart', host._wake)
   }
   host.classList.add('hidden')
+  clearInterval(detailVolPoll)
   if (detailPlayer && detailPlayer.destroy) {
     detailPlayer.destroy()
     detailPlayer = null
   }
   host.innerHTML = '' // stops the trailer audio/video
-  setMainAudioPaused(false) // resume the landing-page soundtrack
+  setMainAudioPaused(false) // resume the bg music (applyBgVolume picks up changes)
 }
 
 /* ============================================================
