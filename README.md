@@ -27,6 +27,18 @@ web server and it runs.
 2. The project URL + anon key are already filled into `app.js` (top of file).
    These are public values, which is fine here.
 
+### Landing-page soundtrack + volume
+
+At the top of `app.js`:
+
+- `MAIN_AUDIO_URL` — paste a YouTube URL to use as the landing page's
+  soundtrack. The blurred background still shows **random** trailers from the
+  list (muted); the audio comes from this one chosen video. Leave blank for a
+  silent landing page. (Browsers won't autoplay sound until you click/press a
+  key once — the audio starts on your first interaction.)
+- `MAIN_AUDIO_VOLUME` — landing-page audio volume, 0–100 (default 25).
+- `DETAIL_VOLUME` — a game trailer's starting volume, 0–100 (default 25).
+
 ## Run it locally
 
 You can't just double-click `index.html` (the `file://` protocol blocks the

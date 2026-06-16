@@ -10,6 +10,15 @@ const SUPABASE_ANON_KEY =
 const ADMIN_PASSWORD = '4054'
 const MEDIA_BUCKET = 'game-media'
 
+// The landing page shows RANDOM trailers from the list (muted, blurred) as
+// visuals, but its AUDIO comes from this one chosen video. Paste any YouTube
+// URL here; leave blank for a silent landing page. Browsers block autoplaying
+// sound until you interact with the page, so the audio starts on your first
+// click/keypress.
+const MAIN_AUDIO_URL = 'https://www.youtube.com/watch?v=PZS85WIejTg'
+const MAIN_AUDIO_VOLUME = 25 // 0–100
+const DETAIL_VOLUME = 25     // starting volume for a game's trailer (0–100)
+
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ---- App state ----
@@ -75,18 +84,23 @@ function embedUrl(url, { blurred } = {}) {
   return `https://www.youtube-nocookie.com/embed/${id}?${params}`
 }
 
-// Full player for the fullscreen game view: real controls (timeline/scrub,
-// pause, volume), sound, keyboard, and a fullscreen button — like normal
-// YouTube. Autoplay starts (muted is not forced); if the browser blocks
-// sound-on-autoplay, the visible controls let you hit play/unmute.
-function detailEmbedUrl(url) {
-  const id = youTubeId(url)
-  if (!id) return null
-  const params = new URLSearchParams({
-    autoplay: '1', controls: '1', rel: '0',
-    modestbranding: '1', playsinline: '1', fs: '1',
+// Load the YouTube IFrame Player API once (needed to control volume, mute and
+// playback — things plain embed URLs can't do). Resolves with the global `YT`.
+let ytApiPromise = null
+function loadYouTubeApi() {
+  if (ytApiPromise) return ytApiPromise
+  ytApiPromise = new Promise((resolve) => {
+    if (window.YT && window.YT.Player) return resolve(window.YT)
+    const prev = window.onYouTubeIframeAPIReady
+    window.onYouTubeIframeAPIReady = () => {
+      if (prev) prev()
+      resolve(window.YT)
+    }
+    const tag = document.createElement('script')
+    tag.src = 'https://www.youtube.com/iframe_api'
+    document.head.appendChild(tag)
   })
-  return `https://www.youtube-nocookie.com/embed/${id}?${params}`
+  return ytApiPromise
 }
 
 /* ============================================================
@@ -193,6 +207,62 @@ function startBackgroundTrailers() {
       show()
     }, 18000)
   }
+}
+
+/* ============================================================
+   Main-page audio (one chosen video, played hidden)
+   The blurred trailers above are silent; the soundtrack comes from here.
+   ============================================================ */
+let mainAudioPlayer = null
+let audioUnlocked = false
+
+function startMainAudio() {
+  const id = youTubeId(MAIN_AUDIO_URL)
+  if (!id) return
+
+  // A rendered-but-invisible mount; YouTube won't play a display:none player.
+  let mount = document.getElementById('mainAudio')
+  if (!mount) {
+    mount = el('div', { id: 'mainAudio', class: 'main-audio' })
+    document.body.append(mount)
+  }
+
+  loadYouTubeApi().then((YT) => {
+    mainAudioPlayer = new YT.Player('mainAudio', {
+      videoId: id,
+      playerVars: {
+        autoplay: 1, controls: 0, loop: 1, playlist: id,
+        mute: 1, modestbranding: 1, rel: 0, playsinline: 1, disablekb: 1,
+      },
+      events: {
+        onReady: (e) => {
+          e.target.setVolume(MAIN_AUDIO_VOLUME)
+          e.target.playVideo()
+          if (audioUnlocked) e.target.unMute() // play with sound once unlocked
+        },
+      },
+    })
+  })
+}
+
+// Browsers block autoplaying sound until the user interacts; unmute on the
+// first gesture anywhere on the page.
+function unlockAudio() {
+  if (audioUnlocked) return
+  audioUnlocked = true
+  if (mainAudioPlayer && mainAudioPlayer.unMute) {
+    mainAudioPlayer.unMute()
+    mainAudioPlayer.setVolume(MAIN_AUDIO_VOLUME)
+    mainAudioPlayer.playVideo()
+  }
+}
+window.addEventListener('pointerdown', unlockAudio)
+window.addEventListener('keydown', unlockAudio)
+
+function setMainAudioPaused(paused) {
+  if (!mainAudioPlayer || !mainAudioPlayer.pauseVideo) return
+  if (paused) mainAudioPlayer.pauseVideo()
+  else if (audioUnlocked) mainAudioPlayer.playVideo()
 }
 
 /* ============================================================
@@ -326,9 +396,13 @@ function render() {
    Fullscreen game view (no page navigation — just an overlay)
    ============================================================ */
 let idleTimer = null
+let detailPlayer = null
 function openDetail(game) {
   const host = $('#detail')
-  const embed = detailEmbedUrl(game.trailer_url)
+  const id = youTubeId(game.trailer_url)
+
+  // Hush the landing-page soundtrack while a trailer is playing.
+  setMainAudioPaused(true)
 
   const overlay = el('div', { class: 'detail-overlay' },
     el('h1', {}, game.title),
@@ -342,16 +416,10 @@ function openDetail(game) {
 
   // The player is fitted (letterboxed) like fullscreen YouTube so its control
   // bar is never cropped, and it's interactive (pointer-events on) so you can
-  // scrub, pause and adjust volume.
-  const media = embed
-    ? el('div', { class: 'detail-stage' },
-        el('iframe', {
-          class: 'detail-video',
-          src: embed,
-          title: game.title,
-          allow: 'autoplay; encrypted-media; fullscreen; picture-in-picture',
-          allowfullscreen: '',
-        }))
+  // scrub, pause and adjust volume. Built via the IFrame API so we can start
+  // the volume at DETAIL_VOLUME instead of full blast.
+  const media = id
+    ? el('div', { class: 'detail-stage' }, el('div', { id: 'detailPlayer' }))
     : game.images && game.images[0]
       ? el('img', { class: 'detail-image', src: game.images[0], alt: game.title })
       : el('div')
@@ -359,6 +427,25 @@ function openDetail(game) {
   host.innerHTML = ''
   host.append(media, hint, overlay)
   host.classList.remove('hidden')
+
+  if (id) {
+    loadYouTubeApi().then((YT) => {
+      detailPlayer = new YT.Player('detailPlayer', {
+        videoId: id,
+        playerVars: {
+          autoplay: 1, controls: 1, rel: 0,
+          modestbranding: 1, playsinline: 1, fs: 1,
+        },
+        events: {
+          onReady: (e) => {
+            e.target.getIframe().classList.add('detail-video')
+            e.target.setVolume(DETAIL_VOLUME)
+            e.target.playVideo()
+          },
+        },
+      })
+    })
+  }
 
   const wake = () => {
     host.classList.remove('hide-cursor')
@@ -386,7 +473,12 @@ function closeDetail() {
     host.removeEventListener('touchstart', host._wake)
   }
   host.classList.add('hidden')
+  if (detailPlayer && detailPlayer.destroy) {
+    detailPlayer.destroy()
+    detailPlayer = null
+  }
   host.innerHTML = '' // stops the trailer audio/video
+  setMainAudioPaused(false) // resume the landing-page soundtrack
 }
 
 /* ============================================================
@@ -602,3 +694,4 @@ $('#search').addEventListener('input', (e) => {
 })
 
 reload()
+startMainAudio()
