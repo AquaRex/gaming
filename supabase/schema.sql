@@ -47,11 +47,15 @@ create policy "public delete" on public.games for delete using (true);
 -- shared here; volume is per-person and lives in the browser, not the DB.
 -- ============================================================
 create table if not exists public.settings (
-  id             integer primary key default 1,
-  main_audio_url text,
-  updated_at     timestamptz not null default now(),
+  id                integer primary key default 1,
+  main_audio_url    text,
+  main_audio_volume integer not null default 100,  -- site-wide background-music volume (0–100)
+  updated_at        timestamptz not null default now(),
   constraint settings_single_row check (id = 1)
 );
+
+-- For databases created before the volume setting: add the column if missing.
+alter table public.settings add column if not exists main_audio_volume integer not null default 100;
 
 insert into public.settings (id) values (1) on conflict (id) do nothing;
 

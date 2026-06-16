@@ -19,7 +19,8 @@ const MEDIA_BUCKET = 'game-media'
 //   *_volume:         0–100.
 const DEFAULT_SETTINGS = {
   main_audio_url: 'https://www.youtube.com/watch?v=PZS85WIejTg',
-  volume: 50, // starting client-side volume until the user changes it on a trailer
+  main_audio_volume: 100, // SHARED (DB): background-music volume for the whole site
+  volume: 100, // per-person (client): starting trailer volume until changed on a trailer
 }
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -32,8 +33,11 @@ const state = {
   activeGenres: [],
   sort: { key: 'release', dir: 'asc' },
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
-  // Shared (from DB): just which video the landing-page audio comes from.
-  settings: { main_audio_url: DEFAULT_SETTINGS.main_audio_url },
+  // Shared (from DB): which video the landing-page audio comes from + its volume.
+  settings: {
+    main_audio_url: DEFAULT_SETTINGS.main_audio_url,
+    main_audio_volume: DEFAULT_SETTINGS.main_audio_volume,
+  },
   // Per-person (this browser only): one volume + mute shared by the background
   // music and the trailers. Whatever you set on a trailer's YouTube controls
   // is captured here and carried back to the background music.
@@ -206,7 +210,12 @@ async function deleteGame(id) {
 async function fetchSettings() {
   try {
     const { data } = await db.from('settings').select('*').eq('id', 1).maybeSingle()
-    if (data) state.settings = { main_audio_url: data.main_audio_url ?? '' }
+    if (data) {
+      state.settings = {
+        main_audio_url: data.main_audio_url ?? '',
+        main_audio_volume: data.main_audio_volume ?? DEFAULT_SETTINGS.main_audio_volume,
+      }
+    }
   } catch {
     /* table missing or offline — keep defaults */
   }
@@ -306,9 +315,9 @@ function startMainAudio() {
 function applyBgVolume() {
   const p = mainAudioPlayer
   if (!p || !p.setVolume) return
-  p.setVolume(state.volume)
-  if (audioUnlocked && !state.muted) p.unMute()
-  else p.mute()
+  p.setVolume(state.settings.main_audio_volume) // site-wide background-music volume
+  if (audioUnlocked) p.unMute()
+  else p.mute() // stays muted until the first user gesture (autoplay policy)
 }
 
 // Browsers block autoplaying sound until the user interacts; unmute on the
@@ -641,6 +650,17 @@ function openSettings() {
     audioUrl.addEventListener('input', refreshThumb)
     refreshThumb()
 
+    // Background-music volume (shared site-wide). Live read-out + live preview.
+    const volReadout = el('span', { class: 'hint', style: 'min-width:3.5ch' }, `${s.main_audio_volume}%`)
+    const volSlider = el('input', {
+      type: 'range', min: '0', max: '100', value: String(s.main_audio_volume),
+    })
+    volSlider.addEventListener('input', () => {
+      volReadout.textContent = `${volSlider.value}%`
+      // Preview immediately on the running background player.
+      if (mainAudioPlayer && mainAudioPlayer.setVolume) mainAudioPlayer.setVolume(Number(volSlider.value))
+    })
+
     const errorText = el('div', { class: 'error-text hidden' })
     const showError = (msg) => { errorText.textContent = msg; errorText.classList.remove('hidden') }
 
@@ -650,9 +670,11 @@ function openSettings() {
       if (url && !youTubeId(url)) return showError('That audio link doesn’t look like a YouTube URL.')
       saveBtn.disabled = true
       errorText.classList.add('hidden')
+      const urlChanged = (url || '') !== (state.settings.main_audio_url || '')
       try {
-        await saveSettings({ main_audio_url: url || null })
-        restartMainAudio() // apply the new soundtrack immediately
+        await saveSettings({ main_audio_url: url || null, main_audio_volume: Number(volSlider.value) })
+        if (urlChanged) restartMainAudio() // new soundtrack
+        else applyBgVolume() // just apply the new volume
         close()
       } catch (err) {
         showError(err.message)
@@ -663,7 +685,8 @@ function openSettings() {
     modal.append(
       el('h2', {}, 'Settings'),
       field('Landing-page audio (YouTube URL)', audioUrl, thumb,
-        el('div', { class: 'hint' }, 'Background visuals stay as random trailers from the list; this is just the soundtrack. Volume is set per-person with the slider on screen.')),
+        el('div', { class: 'hint' }, 'Background visuals stay as random trailers from the list; this is just the soundtrack.')),
+      field('Background music volume', el('div', { class: 'field-row', style: 'align-items:center' }, volSlider, volReadout)),
       errorText,
       el('div', { class: 'modal-actions' },
         el('span'),
