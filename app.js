@@ -79,12 +79,14 @@ function thumbnailUrl(url) {
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null
 }
 // Muted, chromeless, looping — used for the blurred background only.
-function embedUrl(url, { blurred } = {}) {
+// `start` (seconds) lets a trailer begin partway in instead of at 0:00.
+function embedUrl(url, { blurred, start } = {}) {
   const id = youTubeId(url)
   if (!id) return null
   const params = new URLSearchParams({
     autoplay: '1', mute: '1', controls: '0', loop: '1', playlist: id,
     modestbranding: '1', rel: '0', iv_load_policy: '3', playsinline: '1',
+    ...(start ? { start: String(start) } : {}),
     ...(blurred ? { disablekb: '1' } : {}),
   })
   return `https://www.youtube-nocookie.com/embed/${id}?${params}`
@@ -212,25 +214,34 @@ async function uploadImage(file) {
 let bgTimer = null
 function startBackgroundTrailers() {
   const host = $('#bgTrailers')
-  const urls = state.games.map((g) => embedUrl(g.trailer_url, { blurred: true })).filter(Boolean)
+  const trailers = state.games.map((g) => g.trailer_url).filter((u) => youTubeId(u))
   clearInterval(bgTimer)
   host.innerHTML = ''
-  if (!urls.length) return
+  if (!trailers.length) return
 
-  let index = Math.floor(Math.random() * urls.length)
+  let index = Math.floor(Math.random() * trailers.length)
   const show = () => {
+    // Begin somewhere in the middle (≈5–60s in) so it's not always from 0:00.
+    const start = 5 + Math.floor(Math.random() * 55)
     host.innerHTML = ''
-    host.append(el('iframe', { src: urls[index], title: 'background trailer', allow: 'autoplay; encrypted-media', tabindex: '-1' }))
+    host.append(el('iframe', {
+      src: embedUrl(trailers[index], { blurred: true, start }),
+      title: 'background trailer',
+      allow: 'autoplay; encrypted-media',
+      tabindex: '-1',
+    }))
   }
   show()
-  if (urls.length > 1) {
-    bgTimer = setInterval(() => {
+  // Every 20s: pick a different random trailer (or re-roll the start if there's
+  // only one) so the background keeps changing.
+  bgTimer = setInterval(() => {
+    if (trailers.length > 1) {
       let next = index
-      while (next === index) next = Math.floor(Math.random() * urls.length)
+      while (next === index) next = Math.floor(Math.random() * trailers.length)
       index = next
-      show()
-    }, 18000)
-  }
+    }
+    show()
+  }, 20000)
 }
 
 /* ============================================================

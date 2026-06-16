@@ -32,7 +32,8 @@
       "Bash(node --check app.js)",
       "Bash(sed -n '/function startMainAudio/,/^window.addEventListener..keydown., unlockAudio/p' app.js)",
       "Bash(sed -n '/function renderTopControls/,/^}/p' app.js)",
-      "Bash(sed -n '/^reload\\(\\)/,$p' app.js)"
+      "Bash(sed -n '/^reload\\(\\)/,$p' app.js)",
+      "Bash(grep -c \"20000\\\\|{ blurred: true, start }\" app.js)"
     ]
   }
 }
