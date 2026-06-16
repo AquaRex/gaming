@@ -38,7 +38,8 @@
       "Bash(sed -n '/^const state = {/,/^}/p' app.js)",
       "Bash(sed -n '/function startMainAudio/,/^}/p' app.js)",
       "Bash(sed -n '/^function unlockAudio/,/^}/p; /^function setMainAudioPaused/,/^}/p' app.js)",
-      "Bash(sed -n '/^function closeDetail/,/^}/p' app.js)"
+      "Bash(sed -n '/^function closeDetail/,/^}/p' app.js)",
+      "Bash(grep -n \"const payload = {\\\\|tags: f.tags\\\\|images,\\\\|buildReleaseDate\" app.js)"
     ]
   }
 }

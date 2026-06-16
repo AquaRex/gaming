@@ -157,7 +157,7 @@ input:focus, textarea:focus, select:focus {
 }
 .legend, .game-row {
   display: grid;
-  grid-template-columns: 2.2fr 1.1fr 1.6fr 1.2fr 40px;
+  grid-template-columns: 2fr 1fr 1.4fr 1.5fr 1.1fr 40px;
   align-items: center;
   gap: 1rem;
   padding: 0.85rem 1.2rem;
@@ -204,6 +204,23 @@ input:focus, textarea:focus, select:focus {
   color: var(--muted);
 }
 .game-date { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+
+/* Platform badges get a faint accent tint to set them apart from tags. */
+.tag-platform {
+  background: rgba(124, 92, 255, 0.18);
+  color: #cfc4ff;
+}
+.pill-platform {
+  border-color: rgba(124, 92, 255, 0.5);
+  background: rgba(124, 92, 255, 0.18);
+}
+
+/* Toggle-chip group used in the add/edit form (e.g. Platforms). */
+.chip-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
 .row-edit { color: var(--muted); opacity: 0; transition: opacity 0.15s; }
 .game-row:hover .row-edit { opacity: 1; }
 .row-edit:hover { color: var(--accent-2); }

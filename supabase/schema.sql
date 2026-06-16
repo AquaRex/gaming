@@ -12,6 +12,7 @@ create table if not exists public.games (
   title         text not null,
   genre         text,
   tags          text[] not null default '{}',
+  platforms     text[] not null default '{}',  -- e.g. PC, PlayStation 5, Switch
   description   text,
   -- Fuzzy release date: an anchor date plus how precise it is.
   -- precision: 'day' | 'month' | 'year' | 'unknown'
@@ -23,6 +24,9 @@ create table if not exists public.games (
 );
 
 create index if not exists games_created_at_idx on public.games (created_at desc);
+
+-- For databases created before the Platforms feature: add the column if missing.
+alter table public.games add column if not exists platforms text[] not null default '{}';
 
 -- ---- Open access (no auth — friends only) -------------------
 alter table public.games enable row level security;

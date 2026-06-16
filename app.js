@@ -19,7 +19,7 @@ const MEDIA_BUCKET = 'game-media'
 //   *_volume:         0–100.
 const DEFAULT_SETTINGS = {
   main_audio_url: 'https://www.youtube.com/watch?v=PZS85WIejTg',
-  volume: 25, // starting client-side volume until the user changes it on a trailer
+  volume: 50, // starting client-side volume until the user changes it on a trailer
 }
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -129,6 +129,12 @@ function loadYouTubeApi() {
    ============================================================ */
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const PRECISIONS = ['day', 'month', 'year', 'unknown']
+
+// Platforms a game can be marked for (multiple allowed).
+const PLATFORMS = [
+  'PC', 'PlayStation 5', 'PlayStation 4', 'Xbox Series X/S', 'Xbox One',
+  'Nintendo Switch', 'Steam Deck', 'Mac', 'Linux', 'Mobile', 'VR',
+]
 
 function formatReleaseDate(date, precision) {
   if (!date || precision === 'unknown') return 'TBA'
@@ -343,6 +349,7 @@ function setMainAudioPaused(paused) {
 const COLUMNS = [
   { key: 'title', label: 'Title' },
   { key: 'genre', label: 'Genre' },
+  { key: 'platforms', label: 'Platforms', sortable: false },
   { key: 'tags', label: 'Tags', sortable: false },
   { key: 'release', label: 'Release date' },
 ]
@@ -452,6 +459,7 @@ function renderRows() {
         game.images && game.images[0] ? el('img', { src: game.images[0], alt: '' }) : null,
         game.title),
       el('div', { class: 'game-genre' }, game.genre || '—'),
+      el('div', { class: 'tag-list' }, (game.platforms || []).map((p) => el('span', { class: 'tag tag-platform' }, p))),
       el('div', { class: 'tag-list' }, (game.tags || []).map((t) => el('span', { class: 'tag' }, t))),
       el('div', { class: 'game-date' }, formatReleaseDate(game.release_date, game.release_precision)),
       editBtn))
@@ -483,6 +491,7 @@ function openDetail(game) {
     el('div', { class: 'detail-meta' },
       game.genre ? el('span', { class: 'pill' }, game.genre) : null,
       el('span', { class: 'pill' }, formatReleaseDate(game.release_date, game.release_precision)),
+      (game.platforms || []).map((p) => el('span', { class: 'pill pill-platform' }, p)),
       (game.tags || []).map((t) => el('span', { class: 'pill' }, t))),
     game.description ? el('p', { class: 'detail-desc' }, game.description) : null)
 
@@ -668,6 +677,7 @@ function openGameForm(game) {
   const isEdit = Boolean(game)
   const rel = game ? releaseToForm(game.release_date, game.release_precision) : { precision: 'unknown', year: '', month: '', day: '' }
   let images = game ? [...(game.images || [])] : []
+  const platforms = new Set(game?.platforms || [])
 
   openModal((modal, close) => {
     const f = {
@@ -706,6 +716,21 @@ function openGameForm(game) {
     }
     f.trailer.addEventListener('input', refreshThumb)
     refreshThumb()
+
+    // Platform multi-select (toggle chips; mark as many as apply)
+    const platformChips = el('div', { class: 'chip-select' })
+    PLATFORMS.forEach((name) => {
+      const chip = el('button', {
+        type: 'button',
+        class: `chip ${platforms.has(name) ? 'active' : ''}`,
+      }, name)
+      chip.addEventListener('click', () => {
+        if (platforms.has(name)) platforms.delete(name)
+        else platforms.add(name)
+        chip.classList.toggle('active')
+      })
+      platformChips.append(chip)
+    })
 
     // Image upload + paste-URL
     const imageStrip = el('div', { class: 'thumb-strip' })
@@ -758,6 +783,7 @@ function openGameForm(game) {
         title: f.title.value.trim(),
         genre: f.genre.value.trim() || null,
         tags: f.tags.value.split(',').map((t) => t.trim()).filter(Boolean),
+        platforms: [...platforms],
         description: f.description.value.trim() || null,
         trailer_url: f.trailer.value.trim() || null,
         images,
@@ -788,6 +814,7 @@ function openGameForm(game) {
       field('Title *', f.title),
       field('Genre', f.genre),
       field('Tags (comma separated)', f.tags),
+      field('Platforms', platformChips),
       field('Description', f.description),
       field('Trailer (YouTube URL)', f.trailer, thumbPreview),
       field('Release date', dateRow),
