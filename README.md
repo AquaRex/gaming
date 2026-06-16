@@ -40,7 +40,22 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173/gaming/ (note the `/gaming/` base path).
+
+### Test the real GitHub Pages behaviour before pushing
+
+`npm run dev` is best for editing, but it doesn't exercise the `/gaming/` base
+path or the `404.html` deep-link redirect. To preview exactly what GitHub Pages
+will serve:
+
+```bash
+python3 dev-server.py          # builds, then serves at http://127.0.0.1:8000/gaming/
+python3 dev-server.py --open   # also opens a browser
+python3 dev-server.py --no-build --port 9000
+```
+
+It serves the production `dist/` with the same routing rules as GitHub Pages, so
+refreshing on `/gaming/bloodmessage` works just like it will live.
 
 ## Using it
 
