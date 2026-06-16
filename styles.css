@@ -272,13 +272,30 @@ input:focus, textarea:focus, select:focus {
   cursor: default;
 }
 .detail.hide-cursor { cursor: none; }
-.detail-video {
+
+/* Fit the player like fullscreen YouTube: largest 16:9 box that fits the
+   viewport (letterboxed if the screen isn't 16:9), so the control bar stays
+   on-screen. Interactive, so you can scrub / pause / change volume. */
+.detail-stage {
   position: absolute;
-  top: 50%; left: 50%;
-  width: 100vw; height: 56.25vw;
-  min-height: 100vh; min-width: 177.78vh;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.detail-video {
+  aspect-ratio: 16 / 9;
+  width: min(100vw, 177.78vh);
+  height: auto;
+  max-height: 100vh;
   border: 0;
+}
+/* Image fallback (no trailer) still covers the screen. */
+.detail-image {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
   pointer-events: none;
 }
 .detail-overlay {
@@ -288,8 +305,9 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 3rem;
-  background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 40%, transparent 70%);
+  /* extra bottom padding keeps the text clear of the player's control bar */
+  padding: 3rem 3rem 5.5rem;
+  background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 45%, transparent 72%);
   transition: opacity 0.6s ease;
   pointer-events: none;
 }

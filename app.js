@@ -63,6 +63,7 @@ function thumbnailUrl(url) {
   const id = youTubeId(url)
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null
 }
+// Muted, chromeless, looping — used for the blurred background only.
 function embedUrl(url, { blurred } = {}) {
   const id = youTubeId(url)
   if (!id) return null
@@ -70,6 +71,20 @@ function embedUrl(url, { blurred } = {}) {
     autoplay: '1', mute: '1', controls: '0', loop: '1', playlist: id,
     modestbranding: '1', rel: '0', iv_load_policy: '3', playsinline: '1',
     ...(blurred ? { disablekb: '1' } : {}),
+  })
+  return `https://www.youtube-nocookie.com/embed/${id}?${params}`
+}
+
+// Full player for the fullscreen game view: real controls (timeline/scrub,
+// pause, volume), sound, keyboard, and a fullscreen button — like normal
+// YouTube. Autoplay starts (muted is not forced); if the browser blocks
+// sound-on-autoplay, the visible controls let you hit play/unmute.
+function detailEmbedUrl(url) {
+  const id = youTubeId(url)
+  if (!id) return null
+  const params = new URLSearchParams({
+    autoplay: '1', controls: '1', rel: '0',
+    modestbranding: '1', playsinline: '1', fs: '1',
   })
   return `https://www.youtube-nocookie.com/embed/${id}?${params}`
 }
@@ -313,7 +328,7 @@ function render() {
 let idleTimer = null
 function openDetail(game) {
   const host = $('#detail')
-  const embed = embedUrl(game.trailer_url)
+  const embed = detailEmbedUrl(game.trailer_url)
 
   const overlay = el('div', { class: 'detail-overlay' },
     el('h1', {}, game.title),
@@ -325,14 +340,24 @@ function openDetail(game) {
 
   const hint = el('button', { class: 'btn btn-ghost detail-hint', onclick: closeDetail }, '‹ Esc — back to list')
 
+  // The player is fitted (letterboxed) like fullscreen YouTube so its control
+  // bar is never cropped, and it's interactive (pointer-events on) so you can
+  // scrub, pause and adjust volume.
   const media = embed
-    ? el('iframe', { class: 'detail-video', src: embed, title: game.title, allow: 'autoplay; encrypted-media; fullscreen', allowfullscreen: '' })
+    ? el('div', { class: 'detail-stage' },
+        el('iframe', {
+          class: 'detail-video',
+          src: embed,
+          title: game.title,
+          allow: 'autoplay; encrypted-media; fullscreen; picture-in-picture',
+          allowfullscreen: '',
+        }))
     : game.images && game.images[0]
-      ? el('img', { class: 'detail-video', src: game.images[0], alt: game.title, style: 'object-fit:cover' })
-      : null
+      ? el('img', { class: 'detail-image', src: game.images[0], alt: game.title })
+      : el('div')
 
   host.innerHTML = ''
-  host.append(media || el('div'), hint, overlay)
+  host.append(media, hint, overlay)
   host.classList.remove('hidden')
 
   const wake = () => {
