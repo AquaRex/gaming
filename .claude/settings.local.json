@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/bloodmessage)",
+      "Bash(curl -s http://localhost:5173/src/main.jsx)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"vite\")"
+    ]
+  }
+}
