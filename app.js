@@ -407,13 +407,15 @@ function renderFilters() {
 
   const group = (label, values, active, onToggle) => {
     if (!values.length) return
-    host.append(el('span', { class: 'filter-group-label' }, label))
-    for (const v of values) {
-      host.append(el('button', {
+    const chips = values.map((v) =>
+      el('button', {
         class: `chip ${active.includes(v) ? 'active' : ''}`,
         onclick: () => { onToggle(v); render() },
-      }, v))
-    }
+      }, v)
+    )
+    host.append(el('div', { class: 'filter-group' },
+      el('span', { class: 'filter-group-label' }, label),
+      el('div', { class: 'filter-chips' }, ...chips)))
   }
   const toggle = (arr, v) => {
     const i = arr.indexOf(v)
