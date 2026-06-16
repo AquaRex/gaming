@@ -30,7 +30,7 @@ const state = {
   query: '',
   activeTags: [],
   activeGenres: [],
-  sort: { key: 'title', dir: 'asc' },
+  sort: { key: 'release', dir: 'asc' },
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
   // Shared (from DB): just which video the landing-page audio comes from.
   settings: { main_audio_url: DEFAULT_SETTINGS.main_audio_url },

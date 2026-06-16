@@ -366,8 +366,3 @@ input:focus, textarea:focus, select:focus {
 }
 .detail-hint.faded { opacity: 0; }
 
-@media (max-width: 720px) {
-  .legend { display: none; }
-  .game-row { grid-template-columns: 1fr auto; grid-auto-rows: auto; gap: 0.3rem 1rem; }
-  .game-genre, .tag-list { grid-column: 1 / -1; }
-}
