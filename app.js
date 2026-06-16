@@ -35,20 +35,8 @@ const state = {
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
   // Shared (from DB): just which video the landing-page audio comes from.
   settings: { main_audio_url: DEFAULT_SETTINGS.main_audio_url },
-  // Per-person (from this browser): two independent volumes, never sent to DB.
-  volume: { main: loadVolume('main'), detail: loadVolume('detail') },
   loading: true,
   error: null,
-}
-
-// Volume is a client-side preference kept in localStorage (0–100).
-function loadVolume(kind) {
-  const v = Number(localStorage.getItem(`gaming.vol.${kind}`))
-  if (Number.isFinite(v) && v >= 0 && v <= 100) return v
-  return kind === 'main' ? DEFAULT_SETTINGS.main_audio_volume : DEFAULT_SETTINGS.detail_volume
-}
-function saveVolume(kind, v) {
-  localStorage.setItem(`gaming.vol.${kind}`, String(v))
 }
 
 // ---- Small DOM helpers ----
@@ -256,23 +244,27 @@ function startMainAudio() {
   const id = youTubeId(state.settings.main_audio_url)
   if (!id) return
 
-  // A rendered-but-invisible mount; YouTube won't play a display:none player.
+  // A small visible YouTube mini-player in the corner — same native controls
+  // (volume, mute, play/pause) as the game pages. Starts muted so it autoplays;
+  // it unmutes on your first interaction (or use its own mute button).
   let mount = document.getElementById('mainAudio')
   if (!mount) {
-    mount = el('div', { id: 'mainAudio', class: 'main-audio' })
+    mount = el('div', { id: 'mainAudio', class: 'mini-player' })
     document.body.append(mount)
   }
 
   loadYouTubeApi().then((YT) => {
     mainAudioPlayer = new YT.Player('mainAudio', {
+      width: '240',
+      height: '135',
       videoId: id,
       playerVars: {
-        autoplay: 1, controls: 0, loop: 1, playlist: id,
-        mute: 1, modestbranding: 1, rel: 0, playsinline: 1, disablekb: 1,
+        autoplay: 1, controls: 1, loop: 1, playlist: id,
+        mute: 1, modestbranding: 1, rel: 0, playsinline: 1,
       },
       events: {
         onReady: (e) => {
-          e.target.setVolume(state.volume.main)
+          e.target.setVolume(DEFAULT_SETTINGS.main_audio_volume)
           e.target.playVideo()
           if (audioUnlocked) e.target.unMute() // play with sound once unlocked
         },
@@ -288,7 +280,6 @@ function unlockAudio() {
   audioUnlocked = true
   if (mainAudioPlayer && mainAudioPlayer.unMute) {
     mainAudioPlayer.unMute()
-    mainAudioPlayer.setVolume(state.volume.main)
     mainAudioPlayer.playVideo()
   }
 }
@@ -308,61 +299,6 @@ function setMainAudioPaused(paused) {
   if (!mainAudioPlayer || !mainAudioPlayer.pauseVideo) return
   if (paused) mainAudioPlayer.pauseVideo()
   else if (audioUnlocked) mainAudioPlayer.playVideo()
-}
-
-/* ============================================================
-   Volume control (always visible, on every view)
-   On the list it drives the background audio; on a game's
-   fullscreen view it drives that trailer. Two separate volumes.
-   ============================================================ */
-const volPrev = { main: state.volume.main || 25, detail: state.volume.detail || 25 }
-
-// Which audio the slider targets right now depends on the current view.
-function currentVolKind() {
-  return $('#detail').classList.contains('hidden') ? 'main' : 'detail'
-}
-function applyVolume(kind, v) {
-  const player = kind === 'main' ? mainAudioPlayer : detailPlayer
-  if (player && player.setVolume) player.setVolume(v)
-}
-function volIcon(v) {
-  return v === 0 ? '🔇' : v < 50 ? '🔉' : '🔊'
-}
-
-function renderVolumeControl() {
-  const host = $('#volumeControl')
-  host.innerHTML = ''
-  const icon = el('button', { class: 'vol-icon', title: 'Mute / unmute' })
-  const slider = el('input', { type: 'range', min: '0', max: '100', class: 'vol-slider' })
-
-  const sync = () => {
-    const v = state.volume[currentVolKind()]
-    slider.value = String(v)
-    icon.textContent = volIcon(v)
-  }
-  const set = (v) => {
-    const kind = currentVolKind()
-    state.volume[kind] = v
-    if (v > 0) volPrev[kind] = v
-    saveVolume(kind, v)
-    applyVolume(kind, v)
-    icon.textContent = volIcon(v)
-  }
-  slider.addEventListener('input', () => set(Number(slider.value)))
-  icon.addEventListener('click', () => {
-    const kind = currentVolKind()
-    set(state.volume[kind] > 0 ? 0 : volPrev[kind] || 25)
-    slider.value = String(state.volume[kind])
-  })
-
-  host.append(icon, slider)
-  host._sync = sync
-  sync()
-}
-// Update the slider to reflect the active view's volume.
-function syncVolumeUI() {
-  const host = $('#volumeControl')
-  if (host && host._sync) host._sync()
 }
 
 /* ============================================================
@@ -540,7 +476,7 @@ function openDetail(game) {
         events: {
           onReady: (e) => {
             e.target.getIframe().classList.add('detail-video')
-            e.target.setVolume(state.volume.detail)
+            e.target.setVolume(DEFAULT_SETTINGS.detail_volume)
             e.target.playVideo()
           },
         },
@@ -563,7 +499,6 @@ function openDetail(game) {
   host.addEventListener('mousemove', wake)
   host.addEventListener('touchstart', wake)
   wake()
-  syncVolumeUI() // slider now controls this trailer's volume
 }
 
 function closeDetail() {
@@ -581,7 +516,6 @@ function closeDetail() {
   }
   host.innerHTML = '' // stops the trailer audio/video
   setMainAudioPaused(false) // resume the landing-page soundtrack
-  syncVolumeUI() // slider goes back to controlling the background audio
 }
 
 /* ============================================================
@@ -845,6 +779,5 @@ $('#search').addEventListener('input', (e) => {
   renderRows()
 })
 
-renderVolumeControl()
 reload()
 fetchSettings().then(startMainAudio)

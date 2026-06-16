@@ -64,17 +64,20 @@ input:focus, textarea:focus, select:focus {
   border: 0;
   transition: opacity 1.2s ease;
 }
-/* Hidden audio source for the landing page (rendered but invisible so the
-   browser still plays it). */
-.main-audio {
+/* Small visible YouTube mini-player (the landing-page soundtrack source),
+   with native controls. Tucked in the bottom-left corner. */
+.mini-player {
   position: fixed;
-  width: 1px;
-  height: 1px;
-  bottom: 0;
-  left: 0;
-  opacity: 0;
-  pointer-events: none;
-  z-index: -1;
+  bottom: 1rem;
+  left: 1rem;
+  width: 240px;
+  height: 135px;
+  z-index: 5;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: #000;
 }
 
 .bg-trailers::after {
@@ -209,33 +212,6 @@ input:focus, textarea:focus, select:focus {
 .row-edit:hover { color: var(--accent-2); }
 .empty { padding: 3rem 1rem; text-align: center; color: var(--muted); }
 
-/* ---------------- Volume control (top-left, every view) ---------------- */
-.volume-control {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  z-index: 45; /* above the fullscreen view (40), below modals (50) */
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.75rem 0.4rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--panel);
-  backdrop-filter: blur(8px);
-}
-.vol-icon {
-  font-size: 1rem;
-  line-height: 1;
-  width: 1.6rem;
-  text-align: center;
-}
-.vol-slider {
-  width: 110px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
 /* ---------------- Top-right controls ---------------- */
 .top-controls {
   position: fixed;
@@ -369,7 +345,7 @@ input:focus, textarea:focus, select:focus {
 .detail-desc { max-width: 680px; line-height: 1.6; color: #d8d8e6; font-size: 1.05rem; }
 .detail-hint {
   position: absolute;
-  top: 4.2rem; left: 1.1rem; /* sits just below the volume control */
+  top: 1.4rem; left: 1.6rem;
   z-index: 3;
   transition: opacity 0.6s ease;
   pointer-events: auto;
