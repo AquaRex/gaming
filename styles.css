@@ -1,8 +1,8 @@
 :root {
   --bg: #07070c;
-  --panel: rgba(20, 20, 32, 0.72);
-  --panel-solid: #14141f;
-  --border: rgba(255, 255, 255, 0.09);
+  --panel: rgba(255, 255, 255, 0.1);   /* light frosted glass over the blur */
+  --panel-solid: #14141f;              /* modals stay solid for form legibility */
+  --border: rgba(255, 255, 255, 0.2);
   --text: #f3f3fb;
   --muted: #9a9ab0;
   --accent: #7c5cff;
@@ -59,7 +59,7 @@ input:focus, textarea:focus, select:focus {
   min-height: 100vh;
   min-width: 177.78vh;
   transform: translate(-50%, -50%) scale(1.12);
-  filter: blur(22px) brightness(0.45) saturate(1.1);
+  filter: blur(22px) brightness(0.85) saturate(1.15);
   pointer-events: none;
   border: 0;
   transition: opacity 1.2s ease;
@@ -82,8 +82,8 @@ input:focus, textarea:focus, select:focus {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(120% 80% at 50% 0%, transparent 30%, rgba(4, 4, 10, 0.75) 100%),
-    linear-gradient(180deg, rgba(4, 4, 10, 0.55), rgba(4, 4, 10, 0.85));
+    radial-gradient(120% 80% at 50% 0%, transparent 45%, rgba(4, 4, 10, 0.32) 100%),
+    linear-gradient(180deg, rgba(4, 4, 10, 0.12), rgba(4, 4, 10, 0.42));
 }
 
 /* ---------------- Landing layout ---------------- */
@@ -168,7 +168,7 @@ input:focus, textarea:focus, select:focus {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--muted);
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.06);
 }
 .legend button {
   display: inline-flex;
