@@ -10,14 +10,18 @@ const SUPABASE_ANON_KEY =
 const ADMIN_PASSWORD = '4054'
 const MEDIA_BUCKET = 'game-media'
 
-// The landing page shows RANDOM trailers from the list (muted, blurred) as
-// visuals, but its AUDIO comes from this one chosen video. Paste any YouTube
-// URL here; leave blank for a silent landing page. Browsers block autoplaying
-// sound until you interact with the page, so the audio starts on your first
-// click/keypress.
-const MAIN_AUDIO_URL = 'https://www.youtube.com/watch?v=PZS85WIejTg'
-const MAIN_AUDIO_VOLUME = 25 // 0–100
-const DETAIL_VOLUME = 25     // starting volume for a game's trailer (0–100)
+// Defaults for the editable settings (see the Settings tab in admin mode).
+// These are used only if the `settings` row in Supabase hasn't been saved yet.
+//   main_audio_url:   the landing page shows RANDOM trailers (muted, blurred),
+//                     but its soundtrack comes from this one chosen video.
+//                     Blank = silent landing page. Browsers block autoplaying
+//                     sound until you interact, so it starts on first click/key.
+//   *_volume:         0–100.
+const DEFAULT_SETTINGS = {
+  main_audio_url: 'https://www.youtube.com/watch?v=PZS85WIejTg',
+  main_audio_volume: 25,
+  detail_volume: 25,
+}
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
@@ -29,6 +33,7 @@ const state = {
   activeGenres: [],
   sort: { key: 'title', dir: 'asc' },
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
+  settings: { ...DEFAULT_SETTINGS },
   loading: true,
   error: null,
 }
@@ -174,6 +179,30 @@ async function deleteGame(id) {
   const { error } = await db.from('games').delete().eq('id', id)
   if (error) throw error
 }
+// Settings live in a single-row `settings` table (id = 1) so they're shared
+// across everyone, not just one browser. Falls back to DEFAULT_SETTINGS.
+async function fetchSettings() {
+  try {
+    const { data } = await db.from('settings').select('*').eq('id', 1).maybeSingle()
+    if (data) {
+      state.settings = {
+        main_audio_url: data.main_audio_url ?? '',
+        main_audio_volume: data.main_audio_volume ?? DEFAULT_SETTINGS.main_audio_volume,
+        detail_volume: data.detail_volume ?? DEFAULT_SETTINGS.detail_volume,
+      }
+    }
+  } catch {
+    /* table missing or offline — keep defaults */
+  }
+}
+async function saveSettings(values) {
+  const { error } = await db
+    .from('settings')
+    .upsert({ id: 1, ...values, updated_at: new Date().toISOString() })
+  if (error) throw error
+  state.settings = { ...state.settings, ...values }
+}
+
 async function uploadImage(file) {
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
   const path = `images/${crypto.randomUUID()}.${ext}`
@@ -217,7 +246,7 @@ let mainAudioPlayer = null
 let audioUnlocked = false
 
 function startMainAudio() {
-  const id = youTubeId(MAIN_AUDIO_URL)
+  const id = youTubeId(state.settings.main_audio_url)
   if (!id) return
 
   // A rendered-but-invisible mount; YouTube won't play a display:none player.
@@ -236,7 +265,7 @@ function startMainAudio() {
       },
       events: {
         onReady: (e) => {
-          e.target.setVolume(MAIN_AUDIO_VOLUME)
+          e.target.setVolume(state.settings.main_audio_volume)
           e.target.playVideo()
           if (audioUnlocked) e.target.unMute() // play with sound once unlocked
         },
@@ -252,12 +281,21 @@ function unlockAudio() {
   audioUnlocked = true
   if (mainAudioPlayer && mainAudioPlayer.unMute) {
     mainAudioPlayer.unMute()
-    mainAudioPlayer.setVolume(MAIN_AUDIO_VOLUME)
+    mainAudioPlayer.setVolume(state.settings.main_audio_volume)
     mainAudioPlayer.playVideo()
   }
 }
 window.addEventListener('pointerdown', unlockAudio)
 window.addEventListener('keydown', unlockAudio)
+
+// Rebuild the hidden audio player after the chosen video/volume changes.
+function restartMainAudio() {
+  if (mainAudioPlayer && mainAudioPlayer.destroy) mainAudioPlayer.destroy()
+  mainAudioPlayer = null
+  const mount = document.getElementById('mainAudio')
+  if (mount) mount.remove()
+  startMainAudio()
+}
 
 function setMainAudioPaused(paused) {
   if (!mainAudioPlayer || !mainAudioPlayer.pauseVideo) return
@@ -303,6 +341,7 @@ function renderTopControls() {
   if (state.isAdmin) {
     host.append(
       el('button', { class: 'btn btn-primary', onclick: () => openGameForm(null) }, '+ Add game'),
+      el('button', { class: 'btn btn-ghost', onclick: openSettings }, 'Settings'),
       el('button', { class: 'btn btn-ghost', onclick: () => { sessionStorage.removeItem('gaming.admin'); state.isAdmin = false; render() } }, 'Exit admin')
     )
   } else {
@@ -417,7 +456,7 @@ function openDetail(game) {
   // The player is fitted (letterboxed) like fullscreen YouTube so its control
   // bar is never cropped, and it's interactive (pointer-events on) so you can
   // scrub, pause and adjust volume. Built via the IFrame API so we can start
-  // the volume at DETAIL_VOLUME instead of full blast.
+  // the volume at the configured detail volume instead of full blast.
   const media = id
     ? el('div', { class: 'detail-stage' }, el('div', { id: 'detailPlayer' }))
     : game.images && game.images[0]
@@ -439,7 +478,7 @@ function openDetail(game) {
         events: {
           onReady: (e) => {
             e.target.getIframe().classList.add('detail-video')
-            e.target.setVolume(DETAIL_VOLUME)
+            e.target.setVolume(state.settings.detail_volume)
             e.target.playVideo()
           },
         },
@@ -518,6 +557,71 @@ function openLogin() {
         el('button', { class: 'btn btn-ghost', onclick: close }, 'Cancel'),
         el('div', { class: 'right' }, el('button', { class: 'btn btn-primary', onclick: submit }, 'Unlock'))))
     setTimeout(() => input.focus(), 0)
+  })
+}
+
+function openSettings() {
+  openModal((modal, close) => {
+    const s = state.settings
+
+    const audioUrl = el('input', {
+      value: s.main_audio_url || '',
+      placeholder: 'https://youtu.be/…  (blank = silent landing page)',
+    })
+    const thumb = el('div', { class: 'thumb-strip' })
+    const refreshThumb = () => {
+      thumb.innerHTML = ''
+      const t = thumbnailUrl(audioUrl.value)
+      if (t) thumb.append(el('img', { src: t, alt: 'audio video thumbnail' }))
+    }
+    audioUrl.addEventListener('input', refreshThumb)
+    refreshThumb()
+
+    // Volume sliders with a live read-out.
+    const slider = (value) => {
+      const out = el('span', { class: 'hint', style: 'min-width:3ch' }, `${value}%`)
+      const input = el('input', { type: 'range', min: '0', max: '100', value: String(value) })
+      input.addEventListener('input', () => { out.textContent = `${input.value}%` })
+      return { row: el('div', { class: 'field-row', style: 'align-items:center' }, input, out), input }
+    }
+    const mainVol = slider(s.main_audio_volume)
+    const detailVol = slider(s.detail_volume)
+
+    const errorText = el('div', { class: 'error-text hidden' })
+    const showError = (msg) => { errorText.textContent = msg; errorText.classList.remove('hidden') }
+
+    const saveBtn = el('button', { class: 'btn btn-primary' }, 'Save')
+    saveBtn.addEventListener('click', async () => {
+      const url = audioUrl.value.trim()
+      if (url && !youTubeId(url)) return showError('That audio link doesn’t look like a YouTube URL.')
+      saveBtn.disabled = true
+      errorText.classList.add('hidden')
+      try {
+        await saveSettings({
+          main_audio_url: url || null,
+          main_audio_volume: Number(mainVol.input.value),
+          detail_volume: Number(detailVol.input.value),
+        })
+        restartMainAudio() // apply the new soundtrack/volume immediately
+        close()
+      } catch (err) {
+        showError(err.message)
+        saveBtn.disabled = false
+      }
+    })
+
+    modal.append(
+      el('h2', {}, 'Settings'),
+      field('Landing-page audio (YouTube URL)', audioUrl, thumb,
+        el('div', { class: 'hint' }, 'Background visuals stay as random trailers from the list; this is just the soundtrack.')),
+      field('Landing audio volume', mainVol.row),
+      field('Game trailer starting volume', detailVol.row),
+      errorText,
+      el('div', { class: 'modal-actions' },
+        el('span'),
+        el('div', { class: 'right' },
+          el('button', { class: 'btn btn-ghost', onclick: close }, 'Cancel'),
+          saveBtn)))
   })
 }
 
@@ -694,4 +798,4 @@ $('#search').addEventListener('input', (e) => {
 })
 
 reload()
-startMainAudio()
+fetchSettings().then(startMainAudio)

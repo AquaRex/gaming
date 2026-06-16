@@ -38,6 +38,31 @@ create policy "public update" on public.games for update using (true) with check
 create policy "public delete" on public.games for delete using (true);
 
 -- ============================================================
+-- Site settings — a single shared row (id = 1) editable from the
+-- in-app Settings tab (landing-page audio video + volumes).
+-- ============================================================
+create table if not exists public.settings (
+  id                integer primary key default 1,
+  main_audio_url    text,
+  main_audio_volume integer not null default 25,
+  detail_volume     integer not null default 25,
+  updated_at        timestamptz not null default now(),
+  constraint settings_single_row check (id = 1)
+);
+
+insert into public.settings (id) values (1) on conflict (id) do nothing;
+
+alter table public.settings enable row level security;
+
+drop policy if exists "settings read"   on public.settings;
+drop policy if exists "settings write"  on public.settings;
+drop policy if exists "settings update" on public.settings;
+
+create policy "settings read"   on public.settings for select using (true);
+create policy "settings write"  on public.settings for insert with check (true);
+create policy "settings update" on public.settings for update using (true) with check (true);
+
+-- ============================================================
 -- Storage bucket for game images (and optional self-hosted clips).
 -- Easiest: create a PUBLIC bucket named "game-media" in the
 -- dashboard (Storage > New bucket > Public). Then the policies

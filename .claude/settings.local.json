@@ -29,7 +29,10 @@
       "Bash(rm -rf src public node_modules .github dist)",
       "Bash(rm -f vite.config.js package.json package-lock.json .env .env.production .env.example dev-server.py)",
       "Bash(grep -v '^\\\\.git$')",
-      "Bash(node --check app.js)"
+      "Bash(node --check app.js)",
+      "Bash(sed -n '/function startMainAudio/,/^window.addEventListener..keydown., unlockAudio/p' app.js)",
+      "Bash(sed -n '/function renderTopControls/,/^}/p' app.js)",
+      "Bash(sed -n '/^reload\\(\\)/,$p' app.js)"
     ]
   }
 }

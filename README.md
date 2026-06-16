@@ -29,15 +29,18 @@ web server and it runs.
 
 ### Landing-page soundtrack + volume
 
-At the top of `app.js`:
+These are edited in-app: enter admin mode, click **Settings**. They're stored in
+the shared `settings` table so everyone sees the same values.
 
-- `MAIN_AUDIO_URL` — paste a YouTube URL to use as the landing page's
-  soundtrack. The blurred background still shows **random** trailers from the
-  list (muted); the audio comes from this one chosen video. Leave blank for a
-  silent landing page. (Browsers won't autoplay sound until you click/press a
-  key once — the audio starts on your first interaction.)
-- `MAIN_AUDIO_VOLUME` — landing-page audio volume, 0–100 (default 25).
-- `DETAIL_VOLUME` — a game trailer's starting volume, 0–100 (default 25).
+- **Landing-page audio** — a YouTube URL used as the soundtrack. The blurred
+  background still shows **random** trailers from the list (muted); the audio
+  comes from this one chosen video. Blank = silent landing page. (Browsers won't
+  autoplay sound until you click/press a key once — it starts on first
+  interaction.)
+- **Landing audio volume** / **Game trailer starting volume** — 0–100.
+
+The starting defaults (used until the Settings row is saved) live in
+`DEFAULT_SETTINGS` at the top of `app.js`.
 
 ## Run it locally
 
