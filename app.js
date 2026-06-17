@@ -150,7 +150,11 @@ function formatReleaseDate(date, precision) {
 function releaseSortKey(date, precision) {
   if (!date || precision === 'unknown') return Number.POSITIVE_INFINITY
   const [y, m, d] = date.split('-').map(Number)
-  return y * 10000 + (precision === 'year' ? 0 : m) * 100 + (precision === 'day' ? d : 0)
+  // Vague dates sort as the LATEST they could be: a year -> Dec 31, a month ->
+  // last day (31 as an upper bound). So "2026" sorts after "22 July 2026".
+  if (precision === 'year') return y * 10000 + 12 * 100 + 31
+  if (precision === 'month') return y * 10000 + m * 100 + 31
+  return y * 10000 + m * 100 + d
 }
 function buildReleaseDate({ precision, year, month, day }) {
   if (precision === 'unknown' || !year) return { release_date: null, release_precision: 'unknown' }
