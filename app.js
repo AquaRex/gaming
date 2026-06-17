@@ -244,35 +244,70 @@ async function uploadImage(file) {
    Background trailers
    ============================================================ */
 let bgTimer = null
+let bgPlayer = null
+let bgSeeked = false
+
+// Jump to a random point (once per clip) so it doesn't always start at 0:00.
+// Uses the real duration so it never seeks past the end.
+function bgSeekRandom(p) {
+  try {
+    const dur = p.getDuration()
+    if (dur && dur > 25) p.seekTo(Math.floor(Math.random() * (dur - 20)), true)
+  } catch {
+    /* not ready */
+  }
+}
+
 function startBackgroundTrailers() {
   const host = $('#bgTrailers')
-  const trailers = state.games.map((g) => g.trailer_url).filter((u) => youTubeId(u))
+  const ids = state.games.map((g) => youTubeId(g.trailer_url)).filter(Boolean)
   clearInterval(bgTimer)
+  if (bgPlayer && bgPlayer.destroy) { try { bgPlayer.destroy() } catch {} }
+  bgPlayer = null
   host.innerHTML = ''
-  if (!trailers.length) return
+  if (!ids.length) return
 
-  let index = Math.floor(Math.random() * trailers.length)
-  const show = () => {
-    // Begin somewhere in the middle (≈5–60s in) so it's not always from 0:00.
-    const start = 5 + Math.floor(Math.random() * 55)
-    host.innerHTML = ''
-    host.append(el('iframe', {
-      src: embedUrl(trailers[index], { blurred: true, start }),
-      title: 'background trailer',
-      allow: 'autoplay; encrypted-media',
-      tabindex: '-1',
-    }))
-  }
-  show()
-  // Every 20s: pick a different random trailer (or re-roll the start if there's
-  // only one) so the background keeps changing.
+  let index = Math.floor(Math.random() * ids.length)
+  host.append(el('div', { id: 'bgPlayer' }))
+
+  // Driven by the IFrame API (like the detail/audio players) for reliable
+  // muted autoplay — plain autoplay iframes had stopped playing.
+  loadYouTubeApi().then((YT) => {
+    bgSeeked = false
+    bgPlayer = new YT.Player('bgPlayer', {
+      videoId: ids[index],
+      playerVars: {
+        autoplay: 1, controls: 0, mute: 1, modestbranding: 1,
+        rel: 0, iv_load_policy: 3, playsinline: 1, disablekb: 1,
+      },
+      events: {
+        onReady: (e) => { e.target.mute(); e.target.playVideo() },
+        onStateChange: (e) => {
+          if (e.data === YT.PlayerState.PLAYING && !bgSeeked) {
+            bgSeeked = true
+            bgSeekRandom(e.target)
+          }
+          // Loop the single clip ourselves (no playlist quirks).
+          if (e.data === YT.PlayerState.ENDED) {
+            e.target.seekTo(0)
+            e.target.playVideo()
+          }
+        },
+      },
+    })
+  })
+
+  // Every 20s switch to a different random trailer.
   bgTimer = setInterval(() => {
-    if (trailers.length > 1) {
+    if (!bgPlayer || !bgPlayer.loadVideoById) return
+    if (ids.length > 1) {
       let next = index
-      while (next === index) next = Math.floor(Math.random() * trailers.length)
+      while (next === index) next = Math.floor(Math.random() * ids.length)
       index = next
     }
-    show()
+    bgSeeked = false
+    bgPlayer.loadVideoById({ videoId: ids[index] })
+    bgPlayer.mute()
   }, 20000)
 }
 
