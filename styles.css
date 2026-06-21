@@ -169,7 +169,7 @@ input:focus, textarea:focus, select:focus {
 }
 .legend, .game-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.4fr 1.5fr 1.1fr 40px;
+  grid-template-columns: 2.6fr 1fr 0.9fr 1.2fr 0.9fr 40px;
   align-items: center;
   gap: 1rem;
   padding: 0.85rem 1.2rem;
