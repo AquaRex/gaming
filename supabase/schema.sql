@@ -20,6 +20,9 @@ create table if not exists public.games (
   release_precision text not null default 'unknown',
   trailer_url   text,            -- YouTube URL (watch/share/embed/shorts all ok)
   images        text[] not null default '{}',  -- public URLs into the storage bucket
+  -- Optional store/buy links per platform, e.g. {"PC": "https://store.steampowered.com/…"}.
+  -- Keyed by the platform name; clicking a platform logo in the list opens its link.
+  store_links   jsonb not null default '{}'::jsonb,
   created_at    timestamptz not null default now()
 );
 
@@ -27,6 +30,9 @@ create index if not exists games_created_at_idx on public.games (created_at desc
 
 -- For databases created before the Platforms feature: add the column if missing.
 alter table public.games add column if not exists platforms text[] not null default '{}';
+
+-- For databases created before the per-platform store links feature.
+alter table public.games add column if not exists store_links jsonb not null default '{}'::jsonb;
 
 -- ---- Open access (no auth — friends only) -------------------
 alter table public.games enable row level security;

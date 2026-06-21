@@ -219,15 +219,41 @@ input:focus, textarea:focus, select:focus {
 }
 .game-date { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
 
-/* Platform badges get a faint accent tint to set them apart from tags. */
-.tag-platform {
-  background: rgba(124, 92, 255, 0.18);
-  color: #cfc4ff;
+/* Platform logos in the list — one per icon group (Steam covers PC/Mac/Linux). */
+.platform-icons { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
+.platform-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  transition: color 0.15s ease, transform 0.15s ease;
 }
+.platform-icon .pi-svg { display: inline-flex; }
+.platform-icon.has-link { cursor: pointer; }
+.platform-icon.has-link:hover { color: var(--accent-2); transform: translateY(-1px); }
+.platform-icon:not(.has-link) { opacity: 0.85; }
+
 .pill-platform {
   border-color: rgba(124, 92, 255, 0.5);
   background: rgba(124, 92, 255, 0.18);
 }
+
+/* Suggestion chips under the Tags field in the add/edit form. */
+.tag-suggest { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.tag-suggest:empty { display: none; }
+.tag-suggest-chip { padding: 0.2rem 0.6rem; font-size: 0.78rem; }
+
+/* Per-platform store-link inputs in the add/edit form. */
+.store-links { margin-top: 0.7rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.store-links:empty { display: none; }
+.store-link-row { display: flex; align-items: center; gap: 0.6rem; }
+.store-link-label {
+  flex: none;
+  width: 92px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: right;
+}
+.store-link-row input { flex: 1; }
 
 /* Toggle-chip group used in the add/edit form (e.g. Platforms). */
 .chip-select {

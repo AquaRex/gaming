@@ -134,11 +134,71 @@ function loadYouTubeApi() {
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const PRECISIONS = ['day', 'month', 'year', 'unknown']
 
-// Platforms a game can be marked for (multiple allowed).
-const PLATFORMS = [
-  'PC', 'PlayStation 5', 'PlayStation 4', 'Xbox Series X/S', 'Xbox One',
-  'Nintendo Switch', 'Steam Deck', 'Mac', 'Linux', 'Mobile', 'VR',
-]
+// Platforms a game can be marked for (multiple allowed). PC, Mac and Linux all
+// share the Steam logo in the list; the consoles get their own brand logo.
+const PLATFORMS = ['PC', 'Mac', 'Linux', 'PlayStation', 'Xbox', 'Switch', 'VR']
+
+// Brand logos (simple-icons paths, 24×24, drawn with currentColor). The VR one
+// is a custom goggle silhouette. Several platforms map to one icon (Steam covers
+// PC/Mac/Linux), so the list shows one logo per group, not one per platform.
+const PLATFORM_ICONS = {
+  steam: {
+    label: 'PC / Mac / Linux',
+    path: 'M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z',
+  },
+  playstation: {
+    label: 'PlayStation',
+    path: 'M8.984 2.596v17.547l3.915 1.261V6.688c0-.69.304-1.151.794-.991.636.18.76.814.76 1.505v5.875c2.441 1.193 4.362-.002 4.362-3.152 0-3.237-1.126-4.675-4.438-5.827-1.307-.448-3.728-1.186-5.39-1.502zm4.656 16.241l6.296-2.275c.715-.258.826-.625.246-.818-.586-.192-1.637-.139-2.357.123l-4.205 1.5V14.98l.24-.085s1.201-.42 2.913-.615c1.696-.18 3.785.03 5.437.661 1.848.601 2.04 1.472 1.576 2.072-.465.6-1.622 1.036-1.622 1.036l-8.544 3.107V18.86zM1.807 18.6c-1.9-.545-2.214-1.668-1.352-2.32.801-.586 2.16-1.052 2.16-1.052l5.615-2.013v2.313L4.205 17c-.705.271-.825.632-.239.826.586.195 1.637.15 2.343-.12L8.247 17v2.074c-.12.03-.256.044-.39.073-1.939.331-3.996.196-6.038-.479z',
+  },
+  xbox: {
+    label: 'Xbox',
+    path: 'M4.102 21.033C6.211 22.881 8.977 24 12 24c3.026 0 5.789-1.119 7.902-2.967 1.877-1.912-4.316-8.709-7.902-11.417-3.582 2.708-9.779 9.505-7.898 11.417zm11.16-14.406c2.5 2.961 7.484 10.313 6.076 12.912C23.002 17.48 24 14.861 24 12.004c0-3.34-1.365-6.362-3.57-8.536 0 0-.027-.022-.082-.042-.063-.022-.152-.045-.281-.045-.592 0-1.985.434-4.805 3.246zM3.654 3.426c-.057.02-.082.041-.086.042C1.365 5.642 0 8.664 0 12.004c0 2.854.998 5.473 2.661 7.533-1.401-2.605 3.579-9.951 6.08-12.91-2.82-2.813-4.216-3.245-4.806-3.245-.131 0-.223.021-.281.046v-.002zM12 3.551S9.055 1.828 6.755 1.746c-.903-.033-1.454.295-1.521.339C7.379.646 9.659 0 11.984 0H12c2.334 0 4.605.646 6.766 2.085-.068-.046-.615-.372-1.52-.339C14.946 1.828 12 3.545 12 3.545v.006z',
+  },
+  switch: {
+    label: 'Switch',
+    path: 'M14.176 24h3.674c3.376 0 6.15-2.774 6.15-6.15V6.15C24 2.775 21.226 0 17.85 0H14.1c-.074 0-.15.074-.15.15v23.7c-.001.076.075.15.226.15zm4.574-13.199c1.351 0 2.399 1.125 2.399 2.398 0 1.352-1.125 2.4-2.399 2.4-1.35 0-2.4-1.049-2.4-2.4-.075-1.349 1.05-2.398 2.4-2.398zM11.4 0H6.15C2.775 0 0 2.775 0 6.15v11.7C0 21.226 2.775 24 6.15 24h5.25c.074 0 .15-.074.15-.149V.15c.001-.076-.075-.15-.15-.15zM9.676 22.051H6.15c-2.326 0-4.201-1.875-4.201-4.201V6.15c0-2.326 1.875-4.201 4.201-4.201H9.6l.076 20.102zM3.75 7.199c0 1.275.975 2.25 2.25 2.25s2.25-.975 2.25-2.25c0-1.273-.975-2.25-2.25-2.25s-2.25.977-2.25 2.25z',
+  },
+  vr: {
+    label: 'VR',
+    path: 'M2 7.5C2 6.12 3.12 5 4.5 5h15C20.88 5 22 6.12 22 7.5v5c0 1.38-1.12 2.5-2.5 2.5h-4.04c-.95 0-1.81-.54-2.24-1.39l-.43-.86c-.32-.65-1.25-.65-1.58 0l-.43.86c-.43.85-1.29 1.39-2.24 1.39H4.5C3.12 15 2 13.88 2 12.5v-5z',
+  },
+}
+const PLATFORM_ICON_ORDER = ['steam', 'playstation', 'xbox', 'switch', 'vr']
+
+// Map a stored platform string to its icon group. Handles both the current
+// platform names and the older, longer ones (e.g. "PlayStation 5", "Nintendo
+// Switch") so games saved before this change still show the right logo.
+function platformIconKey(p) {
+  const s = String(p).toLowerCase()
+  if (s.includes('playstation') || /\bps[0-9]/.test(s)) return 'playstation'
+  if (s.includes('xbox')) return 'xbox'
+  if (s.includes('switch') || s.includes('nintendo')) return 'switch'
+  if (s.includes('vr') || s.includes('quest') || s.includes('oculus') || s.includes('vive') || s.includes('index')) return 'vr'
+  if (s.includes('pc') || s.includes('mac') || s.includes('linux') || s.includes('windows') || s.includes('steam')) return 'steam'
+  return null // e.g. Mobile — no logo
+}
+
+// Collapse an older/longer platform name to one of the current selectable ones
+// when editing, so saving migrates legacy values. Returns null to drop it.
+function canonicalPlatform(p) {
+  if (PLATFORMS.includes(p)) return p
+  const key = platformIconKey(p)
+  if (key === 'playstation') return 'PlayStation'
+  if (key === 'xbox') return 'Xbox'
+  if (key === 'switch') return 'Switch'
+  if (key === 'vr') return 'VR'
+  if (key === 'steam') return p.toLowerCase().includes('mac') ? 'Mac'
+    : p.toLowerCase().includes('linux') ? 'Linux' : 'PC'
+  return null
+}
+
+// A 20×20 inline SVG for a platform icon group.
+function platformIconSvg(key) {
+  return el('span', {
+    class: 'pi-svg',
+    html: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="${PLATFORM_ICONS[key].path}"/></svg>`,
+  })
+}
 
 function formatReleaseDate(date, precision) {
   if (!date || precision === 'unknown') return 'TBA'
@@ -495,6 +555,39 @@ function renderLegend() {
   host.append(el('span'))
 }
 
+// One logo per icon group for a game's platforms. PC/Mac/Linux collapse to a
+// single Steam logo. If any platform in a group has a store link, the logo
+// becomes a link to it (the first one found); clicking it opens the store page
+// instead of the game's trailer overlay.
+function platformIconsCell(game) {
+  const links = game.store_links || {}
+  const groups = new Map() // iconKey -> first store link found (or null)
+  for (const p of game.platforms || []) {
+    const key = platformIconKey(p)
+    if (!key) continue
+    if (!groups.has(key)) groups.set(key, null)
+    if (!groups.get(key) && links[p]) groups.set(key, links[p])
+  }
+
+  const cell = el('div', { class: 'platform-icons' })
+  for (const key of PLATFORM_ICON_ORDER) {
+    if (!groups.has(key)) continue
+    const href = groups.get(key)
+    const label = PLATFORM_ICONS[key].label
+    if (href) {
+      cell.append(el('a', {
+        class: 'platform-icon has-link',
+        href, target: '_blank', rel: 'noopener noreferrer',
+        title: `${label} — open store page`,
+        onclick: (e) => e.stopPropagation(), // don't open the trailer overlay
+      }, platformIconSvg(key)))
+    } else {
+      cell.append(el('span', { class: 'platform-icon', title: label }, platformIconSvg(key)))
+    }
+  }
+  return cell
+}
+
 function renderRows() {
   const host = $('#rows')
   host.innerHTML = ''
@@ -521,7 +614,7 @@ function renderRows() {
         thumb ? el('img', { src: thumb, alt: '' }) : null,
         game.title),
       el('div', { class: 'game-genre' }, game.genre || '—'),
-      el('div', { class: 'tag-list' }, (game.platforms || []).map((p) => el('span', { class: 'tag tag-platform' }, p))),
+      platformIconsCell(game),
       el('div', { class: 'tag-list' }, (game.tags || []).map((t) => el('span', { class: 'tag' }, t))),
       el('div', { class: 'game-date' }, formatReleaseDate(game.release_date, game.release_precision)),
       editBtn))
@@ -753,7 +846,10 @@ function openGameForm(game) {
   const isEdit = Boolean(game)
   const rel = game ? releaseToForm(game.release_date, game.release_precision) : { precision: 'unknown', year: '', month: '', day: '' }
   let images = game ? [...(game.images || [])] : []
-  const platforms = new Set(game?.platforms || [])
+  // Normalize any legacy platform names to the current selectable set so editing
+  // an old game migrates it cleanly on save.
+  const platforms = new Set((game?.platforms || []).map(canonicalPlatform).filter(Boolean))
+  const storeLinks = { ...(game?.store_links || {}) }
 
   openModal((modal, close) => {
     const f = {
@@ -793,6 +889,48 @@ function openGameForm(game) {
     f.trailer.addEventListener('input', refreshThumb)
     refreshThumb()
 
+    // Tag suggestions: every tag used on any other game, as buttons that add it
+    // to the comma-separated field. Already-entered tags are hidden.
+    const allTags = [...new Set(state.games.flatMap((g) => g.tags || []))].sort((a, b) => a.localeCompare(b))
+    const tagSuggest = el('div', { class: 'tag-suggest' })
+    const currentTags = () => f.tags.value.split(',').map((t) => t.trim()).filter(Boolean)
+    const renderTagSuggest = () => {
+      tagSuggest.innerHTML = ''
+      const have = new Set(currentTags().map((t) => t.toLowerCase()))
+      const available = allTags.filter((t) => !have.has(t.toLowerCase()))
+      available.forEach((t) => {
+        tagSuggest.append(el('button', {
+          type: 'button', class: 'chip tag-suggest-chip',
+          onclick: () => {
+            f.tags.value = [...currentTags(), t].join(', ')
+            renderTagSuggest()
+          },
+        }, '+ ', t))
+      })
+    }
+    f.tags.addEventListener('input', renderTagSuggest)
+    renderTagSuggest()
+
+    // Per-platform store links: one input per selected platform, revealed as you
+    // toggle platforms on. Clicking a platform logo in the list opens its link.
+    const storeLinksWrap = el('div', { class: 'store-links' })
+    const renderStoreLinks = () => {
+      storeLinksWrap.innerHTML = ''
+      const selected = PLATFORMS.filter((p) => platforms.has(p))
+      if (!selected.length) return
+      storeLinksWrap.append(el('div', { class: 'hint' }, 'Store links (optional) — the platform logo in the list links here.'))
+      selected.forEach((name) => {
+        const input = el('input', { value: storeLinks[name] || '', placeholder: `https://…  ${name} store page` })
+        input.addEventListener('input', () => {
+          const v = input.value.trim()
+          if (v) storeLinks[name] = v
+          else delete storeLinks[name]
+        })
+        storeLinksWrap.append(el('div', { class: 'store-link-row' },
+          el('span', { class: 'store-link-label' }, name), input))
+      })
+    }
+
     // Platform multi-select (toggle chips; mark as many as apply)
     const platformChips = el('div', { class: 'chip-select' })
     PLATFORMS.forEach((name) => {
@@ -804,9 +942,11 @@ function openGameForm(game) {
         if (platforms.has(name)) platforms.delete(name)
         else platforms.add(name)
         chip.classList.toggle('active')
+        renderStoreLinks()
       })
       platformChips.append(chip)
     })
+    renderStoreLinks()
 
     // Image upload + paste-URL
     const imageStrip = el('div', { class: 'thumb-strip' })
@@ -860,6 +1000,12 @@ function openGameForm(game) {
         genre: f.genre.value.trim() || null,
         tags: f.tags.value.split(',').map((t) => t.trim()).filter(Boolean),
         platforms: [...platforms],
+        // Only keep links for platforms that are still selected and non-empty.
+        store_links: Object.fromEntries(
+          [...platforms]
+            .map((p) => [p, (storeLinks[p] || '').trim()])
+            .filter(([, v]) => v)
+        ),
         description: f.description.value.trim() || null,
         trailer_url: f.trailer.value.trim() || null,
         images,
@@ -889,8 +1035,8 @@ function openGameForm(game) {
       el('h2', {}, isEdit ? 'Edit game' : 'Add game'),
       field('Title *', f.title),
       field('Genre', f.genre),
-      field('Tags (comma separated)', f.tags),
-      field('Platforms', platformChips),
+      field('Tags (comma separated)', f.tags, tagSuggest),
+      field('Platforms', platformChips, storeLinksWrap),
       field('Description', f.description),
       field('Trailer (YouTube URL)', f.trailer, thumbPreview),
       field('Release date', dateRow),
