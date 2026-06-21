@@ -257,6 +257,30 @@ input:focus, textarea:focus, select:focus {
 }
 .store-link-row input { flex: 1; }
 
+/* Autofill (IGDB lookup) in the add/edit form. */
+.title-row { display: flex; gap: 0.5rem; align-items: stretch; }
+.title-row input { flex: 1; }
+.autofill-btn { flex: none; white-space: nowrap; }
+.igdb-results { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem; }
+.igdb-results:empty { display: none; }
+.igdb-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  transition: all 0.15s ease;
+}
+.igdb-result:hover { border-color: var(--accent); background: rgba(124, 92, 255, 0.12); }
+.igdb-result img, .igdb-noimg {
+  width: 34px; height: 45px; border-radius: 4px; flex: none; object-fit: cover;
+}
+.igdb-noimg { background: #222; }
+.igdb-result-name { font-size: 0.9rem; }
+
 /* Toggle-chip group used in the add/edit form (e.g. Platforms). */
 .chip-select {
   display: flex;

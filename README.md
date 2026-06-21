@@ -17,6 +17,7 @@ web server and it runs.
 | `app.js` | All behaviour (list, search, filters, sort, fullscreen view, admin) |
 | `favicon.svg` | Tab icon |
 | `supabase/schema.sql` | One-time database setup |
+| `supabase/functions/igdb/` | Edge Function that powers **Autofill** (IGDB lookup) |
 
 ## One-time Supabase setup
 
@@ -41,6 +42,36 @@ web server and it runs.
 
 The starting volume default lives in `DEFAULT_SETTINGS.volume` at the top of
 `app.js`.
+
+### Autofill from IGDB (the ✨ Autofill button)
+
+The add/edit form can pull a game's **description, genre, platforms, store links,
+release date and cover** from [IGDB](https://www.igdb.com/) — you just type the
+title and click **Autofill** (tags stay manual). IGDB can't be called from the
+browser (no CORS, and its Twitch auth needs a secret), so a tiny **Supabase Edge
+Function** (`supabase/functions/igdb`) does it server-side. The secrets live in
+Supabase, never in this repo.
+
+One-time setup:
+
+1. **Get Twitch credentials.** Create a Twitch account, enable 2FA, then at
+   [dev.twitch.tv](https://dev.twitch.tv) → *Your Console* → *Applications* →
+   *Register Your Application*. Use OAuth redirect `http://localhost`, client type
+   **Confidential**. Copy the **Client ID** and generate a **Client Secret**.
+   (IGDB authenticates purely with these — no separate IGDB signup.)
+2. **Deploy the function.** In the Supabase dashboard → **Edge Functions** →
+   *Create a function* named `igdb`, and paste in
+   [`supabase/functions/igdb/index.ts`](supabase/functions/igdb/index.ts).
+3. **Add the secrets** (Edge Functions → *Secrets* / *Manage secrets*):
+   - `TWITCH_CLIENT_ID`
+   - `TWITCH_CLIENT_SECRET`
+
+   These are read by the function at runtime and are **never** committed to the
+   repo. Leave "Verify JWT" on — the site calls the function with the public anon
+   key, which satisfies it.
+
+If the secrets are missing or the function isn't deployed, Autofill just shows an
+error and you fill the form in by hand — nothing else breaks.
 
 ## Run it locally
 

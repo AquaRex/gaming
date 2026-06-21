@@ -300,6 +300,16 @@ async function uploadImage(file) {
   return db.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
+// Look a game up in IGDB via the `igdb` edge function (which holds the Twitch
+// secrets and does the server-side auth). Returns mapped candidates; the form
+// lets the user pick one to autofill description/genre/platforms/store links.
+async function searchIgdb(title) {
+  const { data, error } = await db.functions.invoke('igdb', { body: { q: title } })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  return data?.results || []
+}
+
 /* ============================================================
    Background trailers
    ============================================================ */
@@ -931,22 +941,84 @@ function openGameForm(game) {
       })
     }
 
-    // Platform multi-select (toggle chips; mark as many as apply)
+    // Platform multi-select (toggle chips; mark as many as apply). Rebuildable
+    // so Autofill can reflect platforms it adds.
     const platformChips = el('div', { class: 'chip-select' })
-    PLATFORMS.forEach((name) => {
-      const chip = el('button', {
-        type: 'button',
-        class: `chip ${platforms.has(name) ? 'active' : ''}`,
-      }, name)
-      chip.addEventListener('click', () => {
-        if (platforms.has(name)) platforms.delete(name)
-        else platforms.add(name)
-        chip.classList.toggle('active')
-        renderStoreLinks()
+    const renderPlatformChips = () => {
+      platformChips.innerHTML = ''
+      PLATFORMS.forEach((name) => {
+        const chip = el('button', {
+          type: 'button',
+          class: `chip ${platforms.has(name) ? 'active' : ''}`,
+        }, name)
+        chip.addEventListener('click', () => {
+          if (platforms.has(name)) platforms.delete(name)
+          else platforms.add(name)
+          chip.classList.toggle('active')
+          renderStoreLinks()
+        })
+        platformChips.append(chip)
       })
-      platformChips.append(chip)
-    })
+    }
+    renderPlatformChips()
     renderStoreLinks()
+
+    // ---- Autofill from IGDB ----------------------------------------------
+    // Fills description / genre / platforms / store links (and a cover image &
+    // release date when empty) from the chosen IGDB match. Tags stay manual.
+    const autofillBtn = el('button', { type: 'button', class: 'btn btn-ghost autofill-btn' }, '✨ Autofill')
+    const autofillStatus = el('div', { class: 'hint hidden' })
+    const igdbResults = el('div', { class: 'igdb-results' })
+    const showStatus = (msg) => { autofillStatus.textContent = msg; autofillStatus.classList.remove('hidden') }
+    const hideStatus = () => autofillStatus.classList.add('hidden')
+
+    const applyIgdb = (r) => {
+      if (r.summary && !f.description.value.trim()) f.description.value = r.summary
+      if (r.genre && !f.genre.value.trim()) f.genre.value = r.genre
+      if (r.platforms?.length) {
+        r.platforms.forEach((p) => { if (PLATFORMS.includes(p)) platforms.add(p) })
+        renderPlatformChips()
+      }
+      if (r.store_links) {
+        for (const [k, v] of Object.entries(r.store_links)) if (v && !storeLinks[k]) storeLinks[k] = v
+      }
+      renderStoreLinks()
+      if (r.release && precision.value === 'unknown') {
+        precision.value = r.release.precision
+        year.value = r.release.year || ''
+        month.value = r.release.month || ''
+        day.value = r.release.day || ''
+        syncDateRow()
+      }
+      if (r.cover && !images.length) { images.push(r.cover); renderImages() }
+    }
+
+    async function doAutofill() {
+      const q = f.title.value.trim()
+      if (q.length < 2) { showStatus('Type a game title first.'); return }
+      autofillBtn.disabled = true
+      igdbResults.innerHTML = ''
+      showStatus('Searching IGDB…')
+      try {
+        const results = await searchIgdb(q)
+        if (!results.length) { showStatus('No matches found — fill it in manually.'); return }
+        if (results.length === 1) { applyIgdb(results[0]); hideStatus(); return }
+        showStatus('Pick the right game:')
+        results.forEach((r) => {
+          igdbResults.append(el('button', {
+            type: 'button', class: 'igdb-result',
+            onclick: () => { applyIgdb(r); igdbResults.innerHTML = ''; hideStatus() },
+          },
+            r.cover ? el('img', { src: r.cover, alt: '' }) : el('span', { class: 'igdb-noimg' }),
+            el('span', { class: 'igdb-result-name' }, r.name + (r.year ? ` (${r.year})` : ''))))
+        })
+      } catch (err) {
+        showStatus(`Autofill failed: ${err.message}`)
+      } finally {
+        autofillBtn.disabled = false
+      }
+    }
+    autofillBtn.addEventListener('click', doAutofill)
 
     // Image upload + paste-URL
     const imageStrip = el('div', { class: 'thumb-strip' })
@@ -1033,7 +1105,7 @@ function openGameForm(game) {
 
     modal.append(
       el('h2', {}, isEdit ? 'Edit game' : 'Add game'),
-      field('Title *', f.title),
+      field('Title *', el('div', { class: 'title-row' }, f.title, autofillBtn), autofillStatus, igdbResults),
       field('Genre', f.genre),
       field('Tags (comma separated)', f.tags, tagSuggest),
       field('Platforms', platformChips, storeLinksWrap),
