@@ -228,9 +228,11 @@ input:focus, textarea:focus, select:focus {
   transition: color 0.15s ease, transform 0.15s ease;
 }
 .platform-icon .pi-svg { display: inline-flex; }
-.platform-icon.has-link { cursor: pointer; }
-.platform-icon.has-link:hover { color: var(--accent-2); transform: translateY(-1px); }
-.platform-icon:not(.has-link) { opacity: 0.85; }
+/* No store link: dark gray, not clickable. */
+.platform-icon:not(.has-link) { color: #555562; }
+/* Has a store link: light gray so it clearly stands out from the dark ones. */
+.platform-icon.has-link { color: #d6d6e0; cursor: pointer; }
+.platform-icon.has-link:hover { transform: translateY(-1px); filter: brightness(1.2); }
 
 .pill-platform {
   border-color: rgba(124, 92, 255, 0.5);

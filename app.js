@@ -576,13 +576,13 @@ function platformIconsCell(game) {
     const label = PLATFORM_ICONS[key].label
     if (href) {
       cell.append(el('a', {
-        class: 'platform-icon has-link',
+        class: `platform-icon has-link pi-${key}`,
         href, target: '_blank', rel: 'noopener noreferrer',
         title: `${label} — open store page`,
         onclick: (e) => e.stopPropagation(), // don't open the trailer overlay
       }, platformIconSvg(key)))
     } else {
-      cell.append(el('span', { class: 'platform-icon', title: label }, platformIconSvg(key)))
+      cell.append(el('span', { class: `platform-icon pi-${key}`, title: label }, platformIconSvg(key)))
     }
   }
   return cell
