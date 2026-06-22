@@ -257,29 +257,39 @@ input:focus, textarea:focus, select:focus {
 }
 .store-link-row input { flex: 1; }
 
-/* Autofill (IGDB lookup) in the add/edit form. */
-.title-row { display: flex; gap: 0.5rem; align-items: stretch; }
-.title-row input { flex: 1; }
-.autofill-btn { flex: none; white-space: nowrap; }
-.igdb-results { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem; }
-.igdb-results:empty { display: none; }
-.igdb-result {
+/* Title typeahead (store-catalog lookup) in the add/edit form. */
+.title-field { position: relative; }
+.title-suggest {
+  position: absolute;
+  z-index: 10;
+  left: 0; right: 0; top: calc(100% + 4px);
+  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.title-suggest:not(.open) { display: none; }
+.suggest-loading { padding: 0.6rem 0.7rem; font-size: 0.85rem; color: var(--muted); }
+.suggest-item {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  width: 100%;
   text-align: left;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.25);
-  transition: all 0.15s ease;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
-.igdb-result:hover { border-color: var(--accent); background: rgba(124, 92, 255, 0.12); }
-.igdb-result img, .igdb-noimg {
-  width: 34px; height: 45px; border-radius: 4px; flex: none; object-fit: cover;
+.suggest-item:last-child { border-bottom: none; }
+.suggest-item:hover { background: rgba(124, 92, 255, 0.14); }
+.suggest-item img, .suggest-noimg {
+  width: 46px; height: 26px; border-radius: 4px; flex: none; object-fit: cover; background: #222;
 }
-.igdb-noimg { background: #222; }
-.igdb-result-name { font-size: 0.9rem; }
+.suggest-name { flex: 1; font-size: 0.9rem; }
+.suggest-plats { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); flex: none; }
+.suggest-plat { display: inline-flex; }
 
 /* Toggle-chip group used in the add/edit form (e.g. Platforms). */
 .chip-select {
@@ -348,6 +358,7 @@ input:focus, textarea:focus, select:focus {
 .modal-actions .right { display: flex; gap: 0.6rem; }
 .error-text { color: var(--danger); font-size: 0.85rem; margin-top: 0.4rem; }
 .hint { color: var(--muted); font-size: 0.78rem; margin-top: 0.3rem; }
+.hint.error { color: var(--danger); }
 .thumb-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
 .thumb-strip .thumb { position: relative; }
 .thumb-strip img { width: 70px; height: 46px; object-fit: cover; border-radius: 8px; }

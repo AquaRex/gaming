@@ -300,14 +300,159 @@ async function uploadImage(file) {
   return db.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
-// Look a game up in IGDB via the `igdb` edge function (which holds the Twitch
-// secrets and does the server-side auth). Returns mapped candidates; the form
-// lets the user pick one to autofill description/genre/platforms/store links.
-async function searchIgdb(title) {
-  const { data, error } = await db.functions.invoke('igdb', { body: { q: title } })
-  if (error) throw error
+/* ============================================================
+   Game lookup — store catalog (Ephellon/game-store-catalog)
+   Static JSON over a CDN (CORS-open, gzipped), so the browser reads it
+   directly — no backend. Files are per-store, split by first letter. We fetch
+   the letter for what's being typed, merge the 5 stores by normalized name,
+   and get platforms + store URLs + cover for free. Descriptions aren't in the
+   catalog — those come later, best-effort, from Steam (see fetchSteamDetails).
+   ============================================================ */
+const CATALOG_BASE = 'https://cdn.jsdelivr.net/gh/Ephellon/game-store-catalog@main'
+const CATALOG_STORES = ['steam', 'epic', 'psn', 'xbox', 'nintendo'] // steam first → wins PC link + cover
+const catalogCache = new Map() // letter -> Promise<record[]>
+
+// Match key: lowercase, drop ™®©, non-alphanumerics → spaces. Lets the same
+// game from different stores merge despite punctuation differences.
+function normalizeName(s) {
+  return String(s).toLowerCase()
+    .replace(/[™®©]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+function catalogLetter(query) {
+  const c = (query.trim().toLowerCase().match(/[a-z0-9]/) || [''])[0]
+  return /[a-z]/.test(c) ? c : '_'
+}
+
+async function fetchStoreLetter(store, letter) {
+  try {
+    const res = await fetch(`${CATALOG_BASE}/${store}/${letter}.json`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data) ? data : []
+  } catch {
+    return [] // a missing store/letter just contributes nothing
+  }
+}
+
+// Fold one store's entry into the merged record for a game. Steam takes priority
+// for the PC link and cover (it wins even if another store merged first, so the
+// result doesn't depend on which fetch resolves first).
+function mergeStoreEntry(rec, store, g) {
+  const setLink = (platform, href) => { if (href && !rec.store_links[platform]) rec.store_links[platform] = href }
+  if (store === 'steam') {
+    const plats = Array.isArray(g.platforms) ? g.platforms : []
+    if (!plats.length) rec.platforms.add('PC')
+    for (const p of plats) {
+      const s = String(p).toLowerCase()
+      if (s.includes('mac')) rec.platforms.add('Mac')
+      else if (s.includes('linux')) rec.platforms.add('Linux')
+      else rec.platforms.add('PC')
+    }
+    if (g.href) rec.store_links.PC = g.href // Steam wins the PC/Steam slot
+    if (!rec.steamAppId && g.uuid) rec.steamAppId = String(g.uuid)
+    if (g.image) rec.cover = g.image // prefer Steam's (16:9 header) cover
+    return
+  }
+  if (store === 'epic') { rec.platforms.add('PC'); setLink('PC', g.href) }
+  else if (store === 'psn') { rec.platforms.add('PlayStation'); setLink('PlayStation', g.href) }
+  else if (store === 'xbox') { rec.platforms.add('Xbox'); setLink('Xbox', g.href) }
+  else if (store === 'nintendo') { rec.platforms.add('Switch'); setLink('Switch', g.href) }
+  if (!rec.cover && g.image) rec.cover = g.image
+}
+
+function makeRecord(name, key) {
+  return { name, norm: key, platforms: new Set(), store_links: {}, cover: null, steamAppId: null }
+}
+
+// Build (and cache) the merged index for ONE letter across all stores. Fast
+// (~1 MB) — used for instant first results while the full index loads.
+function loadLetterIndex(letter) {
+  if (catalogCache.has(letter)) return catalogCache.get(letter)
+  const promise = (async () => {
+    const files = await Promise.all(
+      CATALOG_STORES.map((s) => fetchStoreLetter(s, letter).then((games) => [s, games]))
+    )
+    const map = new Map()
+    for (const [store, games] of files) {
+      for (const g of games) {
+        if (!g?.name) continue
+        const key = normalizeName(g.name)
+        if (!key) continue
+        let rec = map.get(key)
+        if (!rec) { rec = makeRecord(g.name, key); map.set(key, rec) }
+        mergeStoreEntry(rec, store, g)
+      }
+    }
+    return [...map.values()]
+  })()
+  catalogCache.set(letter, promise)
+  return promise
+}
+
+// The FULL index (every letter, all stores; ~11 MB gzipped, ~225k games).
+// Loaded once in the background so searches by a word that isn't the start of
+// the official title (e.g. "silksong" → "Hollow Knight: Silksong") still work.
+const CATALOG_LETTERS = '_abcdefghijklmnopqrstuvwxyz'.split('')
+let fullIndex = null
+let fullIndexPromise = null
+function ensureFullCatalog() {
+  if (fullIndexPromise) return fullIndexPromise
+  const map = new Map()
+  const mergeGame = (store, g) => {
+    if (!g?.name) return
+    const key = normalizeName(g.name)
+    if (!key) return
+    let rec = map.get(key)
+    if (!rec) { rec = makeRecord(g.name, key); map.set(key, rec) }
+    mergeStoreEntry(rec, store, g)
+  }
+  fullIndexPromise = (async () => {
+    // Merge each file as it arrives, spreading the work off one big blocking pass.
+    await Promise.all(CATALOG_STORES.flatMap((store) =>
+      CATALOG_LETTERS.map((letter) =>
+        fetchStoreLetter(store, letter).then((games) => { for (const g of games) mergeGame(store, g) })
+      )
+    ))
+    fullIndex = [...map.values()]
+    return fullIndex
+  })()
+  return fullIndexPromise
+}
+
+function rankCatalog(index, query, limit) {
+  const nq = normalizeName(query)
+  if (nq.length < 2) return []
+  const scored = []
+  for (const rec of index) {
+    const i = rec.norm.indexOf(nq)
+    if (i < 0) continue
+    scored.push([rec, i])
+  }
+  scored.sort((a, b) => a[1] - b[1] || a[0].name.length - b[0].name.length)
+  return scored.slice(0, limit).map((s) => s[0])
+}
+
+// Top matches for a typed query. Uses the full index once it's ready; until
+// then falls back to the single-letter index for instant results. Kicks off the
+// full load so later keystrokes get complete coverage.
+async function searchCatalog(query, limit = 8) {
+  if (normalizeName(query).length < 2) return []
+  ensureFullCatalog()
+  const index = fullIndex || await loadLetterIndex(catalogLetter(query))
+  return rankCatalog(index, query, limit)
+}
+
+// Best-effort description/genre/release from Steam, via the `steam-details`
+// edge function (Steam's API has no CORS). Throws on failure so the caller can
+// surface why (e.g. the function isn't deployed); descriptions are optional, so
+// a failure never blocks the form.
+async function fetchSteamDetails(appId) {
+  const { data, error } = await db.functions.invoke('steam-details', { body: { appid: appId } })
+  if (error) throw new Error(error.message || 'edge function error (is "steam-details" deployed?)')
   if (data?.error) throw new Error(data.error)
-  return data?.results || []
+  return data
 }
 
 /* ============================================================
@@ -964,62 +1109,99 @@ function openGameForm(game) {
     renderPlatformChips()
     renderStoreLinks()
 
-    // ---- Autofill from IGDB ----------------------------------------------
-    // Fills description / genre / platforms / store links (and a cover image &
-    // release date when empty) from the chosen IGDB match. Tags stay manual.
-    const autofillBtn = el('button', { type: 'button', class: 'btn btn-ghost autofill-btn' }, '✨ Autofill')
-    const autofillStatus = el('div', { class: 'hint hidden' })
-    const igdbResults = el('div', { class: 'igdb-results' })
-    const showStatus = (msg) => { autofillStatus.textContent = msg; autofillStatus.classList.remove('hidden') }
-    const hideStatus = () => autofillStatus.classList.add('hidden')
+    // ---- Title typeahead (store-catalog lookup) --------------------------
+    // As you type a title, suggest real games (with the platforms each is on).
+    // Pick one and it fills platforms + store links + cover instantly, then
+    // fetches a description from Steam in the background (best-effort).
+    const titleSuggest = el('div', { class: 'title-suggest' })
+    const descNote = el('div', { class: 'hint hidden' })
 
-    const applyIgdb = (r) => {
-      if (r.summary && !f.description.value.trim()) f.description.value = r.summary
-      if (r.genre && !f.genre.value.trim()) f.genre.value = r.genre
-      if (r.platforms?.length) {
-        r.platforms.forEach((p) => { if (PLATFORMS.includes(p)) platforms.add(p) })
-        renderPlatformChips()
-      }
-      if (r.store_links) {
-        for (const [k, v] of Object.entries(r.store_links)) if (v && !storeLinks[k]) storeLinks[k] = v
-      }
+    // The small platform logos shown on each suggestion row.
+    const suggestPlatformIcons = (platformSet) => {
+      const keys = [...new Set([...platformSet].map(platformIconKey).filter(Boolean))]
+      return PLATFORM_ICON_ORDER.filter((k) => keys.includes(k))
+        .map((k) => el('span', { class: 'suggest-plat', title: PLATFORM_ICONS[k].label }, platformIconSvg(k)))
+    }
+
+    const applyCatalog = (rec) => {
+      f.title.value = rec.name // use the store's canonical name
+      rec.platforms.forEach((p) => { if (PLATFORMS.includes(p)) platforms.add(p) })
+      renderPlatformChips()
+      for (const [k, v] of Object.entries(rec.store_links)) if (v && !storeLinks[k]) storeLinks[k] = v
       renderStoreLinks()
-      if (r.release && precision.value === 'unknown') {
-        precision.value = r.release.precision
-        year.value = r.release.year || ''
-        month.value = r.release.month || ''
-        day.value = r.release.day || ''
-        syncDateRow()
+      if (rec.cover && !images.length) { images.push(rec.cover); renderImages() }
+
+      // Description/genre/release: background, non-blocking, Steam-only.
+      descNote.classList.remove('error')
+      descNote.classList.add('hidden')
+      if (rec.steamAppId) {
+        descNote.textContent = 'Fetching description from Steam…'
+        descNote.classList.remove('hidden')
+        fetchSteamDetails(rec.steamAppId)
+          .then((d) => {
+            if (d.description && !f.description.value.trim()) f.description.value = d.description
+            if (d.genre && !f.genre.value.trim()) f.genre.value = d.genre
+            if (d.release && precision.value === 'unknown') {
+              precision.value = d.release.precision
+              year.value = d.release.year || ''
+              month.value = d.release.month || ''
+              day.value = d.release.day || ''
+              syncDateRow()
+            }
+            descNote.classList.add('hidden')
+          })
+          .catch((err) => {
+            // Visible so we can tell deployed-but-failing from not-deployed.
+            descNote.textContent = `Steam description unavailable: ${err.message}`
+            descNote.classList.add('error')
+            descNote.classList.remove('hidden')
+          })
       }
-      if (r.cover && !images.length) { images.push(r.cover); renderImages() }
     }
 
-    async function doAutofill() {
-      const q = f.title.value.trim()
-      if (q.length < 2) { showStatus('Type a game title first.'); return }
-      autofillBtn.disabled = true
-      igdbResults.innerHTML = ''
-      showStatus('Searching IGDB…')
-      try {
-        const results = await searchIgdb(q)
-        if (!results.length) { showStatus('No matches found — fill it in manually.'); return }
-        if (results.length === 1) { applyIgdb(results[0]); hideStatus(); return }
-        showStatus('Pick the right game:')
-        results.forEach((r) => {
-          igdbResults.append(el('button', {
-            type: 'button', class: 'igdb-result',
-            onclick: () => { applyIgdb(r); igdbResults.innerHTML = ''; hideStatus() },
-          },
-            r.cover ? el('img', { src: r.cover, alt: '' }) : el('span', { class: 'igdb-noimg' }),
-            el('span', { class: 'igdb-result-name' }, r.name + (r.year ? ` (${r.year})` : ''))))
+    let suggestSeq = 0
+    let suggestTimer = null
+    let suggestRefreshing = false
+    const closeSuggest = () => { titleSuggest.innerHTML = ''; titleSuggest.classList.remove('open') }
+    const renderRecs = (recs) => {
+      titleSuggest.innerHTML = ''
+      if (!recs.length) { closeSuggest(); return }
+      titleSuggest.classList.add('open')
+      recs.forEach((rec) => {
+        titleSuggest.append(el('button', {
+          type: 'button', class: 'suggest-item',
+          // mousedown (not click) so it fires before the input's blur hides us.
+          onmousedown: (e) => { e.preventDefault(); applyCatalog(rec); closeSuggest() },
+        },
+          rec.cover ? el('img', { src: rec.cover, alt: '', loading: 'lazy' }) : el('span', { class: 'suggest-noimg' }),
+          el('span', { class: 'suggest-name' }, rec.name),
+          el('span', { class: 'suggest-plats' }, ...suggestPlatformIcons(rec.platforms))))
+      })
+    }
+    const runSuggest = async () => {
+      const q = f.title.value
+      if (q.trim().length < 2) { closeSuggest(); return }
+      const seq = ++suggestSeq
+      titleSuggest.classList.add('open')
+      titleSuggest.innerHTML = ''
+      titleSuggest.append(el('div', { class: 'suggest-loading' }, 'Searching…'))
+      let recs = []
+      try { recs = await searchCatalog(q) } catch { /* offline / blocked — silent */ }
+      if (seq !== suggestSeq) return // a newer keystroke superseded this
+      renderRecs(recs)
+      // Initial results may come from the fast single-letter index; once the full
+      // catalog finishes loading, re-run so mid-title matches ("silksong") appear.
+      if (!fullIndex && !suggestRefreshing) {
+        suggestRefreshing = true
+        ensureFullCatalog().then(() => {
+          suggestRefreshing = false
+          if (document.activeElement === f.title) runSuggest()
         })
-      } catch (err) {
-        showStatus(`Autofill failed: ${err.message}`)
-      } finally {
-        autofillBtn.disabled = false
       }
     }
-    autofillBtn.addEventListener('click', doAutofill)
+    f.title.addEventListener('input', () => { clearTimeout(suggestTimer); suggestTimer = setTimeout(runSuggest, 250) })
+    f.title.addEventListener('blur', () => setTimeout(closeSuggest, 150))
+    ensureFullCatalog() // warm the full index in the background as soon as the form opens
 
     // Image upload + paste-URL
     const imageStrip = el('div', { class: 'thumb-strip' })
@@ -1106,7 +1288,7 @@ function openGameForm(game) {
 
     modal.append(
       el('h2', {}, isEdit ? 'Edit game' : 'Add game'),
-      field('Title *', el('div', { class: 'title-row' }, f.title, autofillBtn), autofillStatus, igdbResults),
+      field('Title *', el('div', { class: 'title-field' }, f.title, titleSuggest), descNote),
       field('Genre', f.genre),
       field('Tags (comma separated)', f.tags, tagSuggest),
       field('Platforms', platformChips, storeLinksWrap),

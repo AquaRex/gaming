@@ -17,7 +17,7 @@ web server and it runs.
 | `app.js` | All behaviour (list, search, filters, sort, fullscreen view, admin) |
 | `favicon.svg` | Tab icon |
 | `supabase/schema.sql` | One-time database setup |
-| `supabase/functions/igdb/` | Edge Function that powers **Autofill** (IGDB lookup) |
+| `supabase/functions/steam-details/` | Optional Edge Function for auto **descriptions** (Steam) |
 
 ## One-time Supabase setup
 
@@ -43,35 +43,39 @@ web server and it runs.
 The starting volume default lives in `DEFAULT_SETTINGS.volume` at the top of
 `app.js`.
 
-### Autofill from IGDB (the ✨ Autofill button)
+### Title autofill (game-store catalog)
 
-The add/edit form can pull a game's **description, genre, platforms, store links,
-release date and cover** from [IGDB](https://www.igdb.com/) — you just type the
-title and click **Autofill** (tags stay manual). IGDB can't be called from the
-browser (no CORS, and its Twitch auth needs a secret), so a tiny **Supabase Edge
-Function** (`supabase/functions/igdb`) does it server-side. The secrets live in
-Supabase, never in this repo.
+As you type a game's title in the add/edit form, it suggests real games and the
+platforms each is on. Pick one and it fills in **platforms, store links and a
+cover image** instantly. This reads the static, CDN-hosted JSON catalog from
+[Ephellon/game-store-catalog](https://github.com/Ephellon/game-store-catalog)
+(Steam, Epic, PlayStation, Xbox, Nintendo) **directly from the browser** — no
+backend, no key. It's fetched one alphabet-letter at a time and cached, and the
+five stores are merged by normalized title to gather every platform + store URL.
 
-One-time setup:
+Tags stay manual. Cross-store name matching is heuristic, so occasionally a game
+splits into two suggestions or a platform is missed — just toggle it by hand.
 
-1. **Get Twitch credentials.** Create a Twitch account, enable 2FA, then at
-   [dev.twitch.tv](https://dev.twitch.tv) → *Your Console* → *Applications* →
-   *Register Your Application*. Use OAuth redirect `http://localhost`, client type
-   **Confidential**. Copy the **Client ID** and generate a **Client Secret**.
-   (IGDB authenticates purely with these — no separate IGDB signup.)
-2. **Deploy the function.** In the Supabase dashboard → **Edge Functions** →
-   *Create a function* named `igdb`, and paste in
-   [`supabase/functions/igdb/index.ts`](supabase/functions/igdb/index.ts).
-3. **Add the secrets** (Edge Functions → *Secrets* / *Manage secrets*):
-   - `TWITCH_CLIENT_ID`
-   - `TWITCH_CLIENT_SECRET`
+#### Optional: auto descriptions (Steam)
 
-   These are read by the function at runtime and are **never** committed to the
-   repo. Leave "Verify JWT" on — the site calls the function with the public anon
-   key, which satisfies it.
+The catalog has no descriptions. When you pick a game that's on Steam, the form
+*also* tries to pull a **short description, genre and release date** from Steam —
+in the background, never blocking anything. Steam's API has no CORS, so this goes
+through a tiny **Supabase Edge Function** with no secrets or auth:
 
-If the secrets are missing or the function isn't deployed, Autofill just shows an
-error and you fill the form in by hand — nothing else breaks.
+1. Supabase dashboard → **Edge Functions** → *Create a function* named
+   `steam-details`, paste in
+   [`supabase/functions/steam-details/index.ts`](supabase/functions/steam-details/index.ts),
+   deploy. Leave "Verify JWT" on (the site calls it with the public anon key).
+
+That's the whole setup — no secrets to manage. If you skip it (or it fails), the
+form just doesn't auto-fill a description and you type one in; nothing else
+breaks. Console-only games (not on Steam) won't get an auto description either.
+
+> Replaced an earlier IGDB-based autofill, which was missing too many
+> newly-announced games — the whole point of this list. If you set that up,
+> delete the old `igdb` Edge Function and its `TWITCH_CLIENT_ID` /
+> `TWITCH_CLIENT_SECRET` secrets in Supabase; they're no longer used.
 
 ## Run it locally
 
