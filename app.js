@@ -882,9 +882,10 @@ function openGameForm(game) {
     const syncDateRow = () => {
       dateRow.innerHTML = ''
       dateRow.append(precision)
-      if (precision.value !== 'unknown') dateRow.append(year)
-      if (precision.value === 'month' || precision.value === 'day') dateRow.append(month)
+      // Day / month / year order.
       if (precision.value === 'day') dateRow.append(day)
+      if (precision.value === 'month' || precision.value === 'day') dateRow.append(month)
+      if (precision.value !== 'unknown') dateRow.append(year)
     }
     precision.addEventListener('change', syncDateRow)
     syncDateRow()
