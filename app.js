@@ -312,11 +312,14 @@ const CATALOG_BASE = 'https://cdn.jsdelivr.net/gh/Ephellon/game-store-catalog@ma
 const CATALOG_STORES = ['steam', 'epic', 'psn', 'xbox', 'nintendo'] // steam first → wins PC link + cover
 const catalogCache = new Map() // letter -> Promise<record[]>
 
-// Match key: lowercase, drop ™®©, non-alphanumerics → spaces. Lets the same
-// game from different stores merge despite punctuation differences.
+// Match key: strip accents (é→e, ñ→n), lowercase, collapse everything that
+// isn't a letter/number (™®©, punctuation, the "é" leftover) to spaces. Lets
+// "pokemon" find "Pokémon" and merges the same game across stores despite
+// punctuation/accent differences.
 function normalizeName(s) {
-  return String(s).toLowerCase()
-    .replace(/[™®©]/g, '')
+  return String(s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // decompose + drop diacritics
+    .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
 }
