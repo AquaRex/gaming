@@ -903,8 +903,14 @@ function closeDetail() {
 function openModal(buildContent) {
   const root = $('#modalRoot')
   const close = () => { root.innerHTML = '' }
-  const overlay = el('div', { class: 'modal-overlay', onclick: close })
-  const modal = el('div', { class: 'modal', onclick: (e) => e.stopPropagation() })
+  const overlay = el('div', { class: 'modal-overlay' })
+  const modal = el('div', { class: 'modal' })
+  // Close only on a genuine click on the backdrop — i.e. the press AND the
+  // release both happen on the overlay itself. This stops a drag that starts
+  // inside the modal (e.g. selecting text) and ends outside from closing it.
+  let pressedOnOverlay = false
+  overlay.addEventListener('mousedown', (e) => { pressedOnOverlay = e.target === overlay })
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && pressedOnOverlay) close() })
   overlay.append(modal)
   root.innerHTML = ''
   root.append(overlay)
