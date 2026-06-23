@@ -31,6 +31,7 @@ const state = {
   query: '',
   activeTags: [],
   activeGenres: [],
+  showReleased: false, // hide already-released games until the user opts in
   sort: { key: 'release', dir: 'asc' },
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
   // Shared (from DB): which video the landing-page audio comes from + its volume.
@@ -215,6 +216,17 @@ function releaseSortKey(date, precision) {
   if (precision === 'year') return y * 10000 + 12 * 100 + 31
   if (precision === 'month') return y * 10000 + m * 100 + 31
   return y * 10000 + m * 100 + d
+}
+// Today as the same yyyymmdd integer releaseSortKey produces, for comparing.
+function todaySortKey() {
+  const now = new Date()
+  return now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate()
+}
+// A game counts as released only once its LATEST possible date has passed, so a
+// fuzzy date that might still be upcoming (e.g. "2026" mid-2026) stays visible;
+// TBA/unknown is never "released" (sort key is Infinity).
+function hasReleased(game) {
+  return releaseSortKey(game.release_date, game.release_precision) <= todaySortKey()
 }
 function buildReleaseDate({ precision, year, month, day }) {
   if (precision === 'unknown' || !year) return { release_date: null, release_precision: 'unknown' }
@@ -640,6 +652,7 @@ function visibleGames() {
     }
     if (state.activeGenres.length && !state.activeGenres.includes(g.genre)) return false
     if (state.activeTags.length && !state.activeTags.every((t) => (g.tags || []).includes(t))) return false
+    if (!state.showReleased && hasReleased(g)) return false
     return true
   })
   const dir = state.sort.dir === 'asc' ? 1 : -1
@@ -692,6 +705,19 @@ function renderFilters() {
   }
   group('Genres', allGenres, state.activeGenres, (v) => toggle(state.activeGenres, v))
   group('Tags', allTags, state.activeTags, (v) => toggle(state.activeTags, v))
+
+  // Released toggle: by default released games are hidden. Only worth showing
+  // the control when there's actually something released to reveal.
+  const releasedCount = state.games.filter(hasReleased).length
+  if (releasedCount) {
+    host.append(el('div', { class: 'filter-group' },
+      el('span', { class: 'filter-group-label' }, 'Show'),
+      el('div', { class: 'filter-chips' },
+        el('button', {
+          class: `chip ${state.showReleased ? 'active' : ''}`,
+          onclick: () => { state.showReleased = !state.showReleased; render() },
+        }, `Released (${releasedCount})`))))
+  }
 }
 
 function renderLegend() {
