@@ -121,21 +121,14 @@ input:focus, textarea:focus, select:focus {
   background: var(--panel);
   backdrop-filter: blur(12px);
 }
-/* Toggle between hiding (default) and showing already-released games. */
-.released-toggle {
+/* The "Released" button sits to the right of the search input; it uses the
+   shared .btn look, gaining .btn-primary (filled accent) while active. */
+#releasedToggle {
   flex: none;
   white-space: nowrap;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  backdrop-filter: blur(12px);
-  border-radius: 999px;
-  padding: 0 1.1rem;
-  font-size: 0.9rem;
-  color: var(--muted);
-  transition: all 0.15s ease;
+  padding-left: 1.1rem;
+  padding-right: 1.1rem;
 }
-.released-toggle:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.25); }
-.released-toggle.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Shrink-to-content block, centered as a unit under the search bar. The two
    groups share an aligned label column so genres and tags line up. */

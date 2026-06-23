@@ -707,16 +707,12 @@ function renderFilters() {
   group('Tags', allTags, state.activeTags, (v) => toggle(state.activeTags, v))
 }
 
-// The "Show released" / "Hide released" toggle next to the search bar. Released
-// games are hidden by default; the label and count reflect the current state.
+// The "Released" button next to the search bar. Released games are hidden by
+// default; clicking fills the button (btn-primary) and shows them.
 function renderReleasedToggle() {
   const btn = $('#releasedToggle')
   if (!btn) return
-  const releasedCount = state.games.filter(hasReleased).length
-  btn.classList.toggle('active', state.showReleased)
-  btn.textContent = state.showReleased
-    ? 'Hide released'
-    : `Show released (${releasedCount})`
+  btn.classList.toggle('btn-primary', state.showReleased)
 }
 
 function renderLegend() {
