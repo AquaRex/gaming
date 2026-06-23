@@ -578,7 +578,7 @@ function startBackgroundTrailers() {
 }
 
 /* ============================================================
-   Main-page audio (ONE randomly-chosen track from the list, played hidden)
+   Main-page audio (shuffles through ALL tracks, looping forever, played hidden)
    The blurred trailers above are silent; the soundtrack comes from here.
    ============================================================ */
 let mainAudioPlayer = null
@@ -586,20 +586,58 @@ let audioUnlocked = false
 // Which track is currently playing, so the volume preview/apply targets it.
 let currentAudioId = null
 let currentAudioVolume = 100
+// A shuffled queue of tracks we walk through; when exhausted we reshuffle and
+// keep going, so the music never stops even after every track has played.
+let audioQueue = []
+let audioQueuePos = 0
 
-// Pick a random playable track from the list (skips entries with bad URLs).
-function pickAudioTrack() {
-  const tracks = (state.settings.main_audio_tracks || []).filter((t) => youTubeId(t.url))
+// The current playable tracks ({id, volume}), skipping entries with bad URLs.
+function audioTrackList() {
+  return (state.settings.main_audio_tracks || [])
+    .map((t) => ({ id: youTubeId(t.url), volume: clampVolume(t.volume) }))
+    .filter((t) => t.id)
+}
+
+function shuffled(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// Next track in the shuffled queue. Reshuffles for another pass when exhausted,
+// nudging the just-played track off the front so it doesn't repeat back-to-back.
+function nextAudioTrack() {
+  const tracks = audioTrackList()
   if (!tracks.length) return null
-  return tracks[Math.floor(Math.random() * tracks.length)]
+  if (audioQueuePos >= audioQueue.length) {
+    let q = shuffled(tracks)
+    if (q.length > 1 && q[0].id === currentAudioId) q.push(q.shift())
+    audioQueue = q
+    audioQueuePos = 0
+  }
+  return audioQueue[audioQueuePos++]
+}
+
+// Load + play a given track, applying its own volume.
+function playAudioTrack(track) {
+  currentAudioId = track.id
+  currentAudioVolume = track.volume
+  if (mainAudioPlayer && mainAudioPlayer.loadVideoById) {
+    mainAudioPlayer.loadVideoById(track.id)
+    applyBgVolume()
+  }
 }
 
 function startMainAudio() {
-  const track = pickAudioTrack()
+  audioQueue = []
+  audioQueuePos = 0
+  const track = nextAudioTrack()
   if (!track) return
-  const id = youTubeId(track.url)
-  currentAudioId = id
-  currentAudioVolume = clampVolume(track.volume)
+  currentAudioId = track.id
+  currentAudioVolume = track.volume
 
   // A hidden player — no controls, invisible (but rendered so it still plays).
   // It's just the background music. Volume follows the client-side setting.
@@ -613,15 +651,24 @@ function startMainAudio() {
     mainAudioPlayer = new YT.Player('mainAudio', {
       width: '160',
       height: '90',
-      videoId: id,
+      videoId: track.id,
       playerVars: {
-        autoplay: 1, controls: 0, loop: 1, playlist: id,
+        // No loop/playlist here — we advance on ENDED so each track gets its own
+        // volume and the whole list shuffles through.
+        autoplay: 1, controls: 0,
         mute: 1, modestbranding: 1, rel: 0, playsinline: 1, disablekb: 1,
       },
       events: {
         onReady: (e) => {
           applyBgVolume()
           e.target.playVideo()
+        },
+        onStateChange: (e) => {
+          // When a track finishes, move on to the next shuffled one.
+          if (e.data === YT.PlayerState.ENDED) {
+            const next = nextAudioTrack()
+            if (next) playAudioTrack(next)
+          }
         },
       },
     })
