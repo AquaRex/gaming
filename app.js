@@ -652,7 +652,9 @@ function visibleGames() {
     }
     if (state.activeGenres.length && !state.activeGenres.includes(g.genre)) return false
     if (state.activeTags.length && !state.activeTags.every((t) => (g.tags || []).includes(t))) return false
-    if (!state.showReleased && hasReleased(g)) return false
+    // Default view shows only unreleased titles; the "Released" button flips it
+    // to show only titles that have already released.
+    if (hasReleased(g) !== state.showReleased) return false
     return true
   })
   const dir = state.sort.dir === 'asc' ? 1 : -1
