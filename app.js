@@ -8,6 +8,9 @@ const SUPABASE_URL = 'https://fsfagnwonxsmnozapwsd.supabase.co'
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzZmFnbndvbnhzbW5vemFwd3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MjA5MzYsImV4cCI6MjA5NzE5NjkzNn0.IXUNmLCyLG38Iq2K3UegQdCticDsYB52xdKQkKYtiVc'
 const ADMIN_PASSWORD = '4054'
+// A second password that grants the same admin access PLUS the Settings button
+// (which the default admin password doesn't show).
+const SETTINGS_PASSWORD = '1254'
 const MEDIA_BUCKET = 'game-media'
 
 // Defaults for the editable settings (see the Settings tab in admin mode).
@@ -34,6 +37,8 @@ const state = {
   showReleased: false, // hide already-released games until the user opts in
   sort: { key: 'release', dir: 'asc' },
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
+  // Only the secondary password unlocks Settings.
+  canSettings: sessionStorage.getItem('gaming.settings') === '1',
   // Shared (from DB): which video the landing-page audio comes from + its volume.
   settings: {
     main_audio_url: DEFAULT_SETTINGS.main_audio_url,
@@ -674,8 +679,16 @@ function renderTopControls() {
   if (state.isAdmin) {
     host.append(
       el('button', { class: 'btn btn-primary', onclick: () => openGameForm(null) }, '+ Add game'),
-      el('button', { class: 'btn btn-ghost', onclick: openSettings }, 'Settings'),
-      el('button', { class: 'btn btn-ghost', onclick: () => { sessionStorage.removeItem('gaming.admin'); state.isAdmin = false; render() } }, 'Exit admin')
+      state.canSettings
+        ? el('button', { class: 'btn btn-ghost', onclick: openSettings }, 'Settings')
+        : null,
+      el('button', { class: 'btn btn-ghost', onclick: () => {
+        sessionStorage.removeItem('gaming.admin')
+        sessionStorage.removeItem('gaming.settings')
+        state.isAdmin = false
+        state.canSettings = false
+        render()
+      } }, 'Exit admin')
     )
   } else {
     host.append(el('button', { class: 'btn btn-ghost', onclick: openLogin }, 'Admin'))
@@ -947,9 +960,13 @@ function openLogin() {
     const input = el('input', { type: 'password', autofocus: '', placeholder: '••••' })
     const errorText = el('div', { class: 'error-text hidden' }, 'Wrong password.')
     const submit = () => {
-      if (input.value === ADMIN_PASSWORD) {
+      const isSettings = input.value === SETTINGS_PASSWORD
+      if (input.value === ADMIN_PASSWORD || isSettings) {
         sessionStorage.setItem('gaming.admin', '1')
         state.isAdmin = true
+        // The secondary password additionally unlocks the Settings button.
+        state.canSettings = isSettings
+        sessionStorage.setItem('gaming.settings', isSettings ? '1' : '0')
         close()
         render()
       } else {
