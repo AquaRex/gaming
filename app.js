@@ -705,19 +705,18 @@ function renderFilters() {
   }
   group('Genres', allGenres, state.activeGenres, (v) => toggle(state.activeGenres, v))
   group('Tags', allTags, state.activeTags, (v) => toggle(state.activeTags, v))
+}
 
-  // Released toggle: by default released games are hidden. Only worth showing
-  // the control when there's actually something released to reveal.
+// The "Show released" / "Hide released" toggle next to the search bar. Released
+// games are hidden by default; the label and count reflect the current state.
+function renderReleasedToggle() {
+  const btn = $('#releasedToggle')
+  if (!btn) return
   const releasedCount = state.games.filter(hasReleased).length
-  if (releasedCount) {
-    host.append(el('div', { class: 'filter-group' },
-      el('span', { class: 'filter-group-label' }, 'Show'),
-      el('div', { class: 'filter-chips' },
-        el('button', {
-          class: `chip ${state.showReleased ? 'active' : ''}`,
-          onclick: () => { state.showReleased = !state.showReleased; render() },
-        }, `Released (${releasedCount})`))))
-  }
+  btn.classList.toggle('active', state.showReleased)
+  btn.textContent = state.showReleased
+    ? 'Hide released'
+    : `Show released (${releasedCount})`
 }
 
 function renderLegend() {
@@ -808,6 +807,7 @@ function renderRows() {
 function render() {
   renderTopControls()
   renderFilters()
+  renderReleasedToggle()
   renderLegend()
   renderRows()
 }
@@ -1373,6 +1373,11 @@ window.addEventListener('keydown', (e) => {
 $('#search').addEventListener('input', (e) => {
   state.query = e.target.value
   renderRows()
+})
+
+$('#releasedToggle').addEventListener('click', () => {
+  state.showReleased = !state.showReleased
+  render()
 })
 
 reload()
