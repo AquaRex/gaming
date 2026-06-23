@@ -54,14 +54,20 @@ create policy "public delete" on public.games for delete using (true);
 -- ============================================================
 create table if not exists public.settings (
   id                integer primary key default 1,
-  main_audio_url    text,
-  main_audio_volume integer not null default 100,  -- site-wide background-music volume (0–100)
+  main_audio_url    text,                            -- legacy single-track (kept for back-compat)
+  main_audio_volume integer not null default 100,    -- legacy single-track volume
+  -- List of landing-page audio tracks, each {"url": "...", "volume": 0-100}.
+  -- One is chosen at random to play as the soundtrack.
+  main_audio_tracks jsonb not null default '[]'::jsonb,
   updated_at        timestamptz not null default now(),
   constraint settings_single_row check (id = 1)
 );
 
 -- For databases created before the volume setting: add the column if missing.
 alter table public.settings add column if not exists main_audio_volume integer not null default 100;
+
+-- For databases created before the multi-track audio list.
+alter table public.settings add column if not exists main_audio_tracks jsonb not null default '[]'::jsonb;
 
 insert into public.settings (id) values (1) on conflict (id) do nothing;
 

@@ -384,6 +384,24 @@ input:focus, textarea:focus, select:focus {
   display: flex; align-items: center; justify-content: center;
 }
 
+/* ---------------- Settings: audio track list ---------------- */
+.audio-tracks { display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.6rem; }
+.audio-track {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+.audio-track-row { display: flex; gap: 0.6rem; align-items: center; }
+.audio-track-row input { flex: 1; }
+.audio-track-remove {
+  flex: none;
+  width: 34px; padding: 0.4rem 0;
+  font-size: 1.1rem; line-height: 1;
+  color: var(--danger);
+}
+.audio-track .field-row { margin-top: 0.6rem; }
+
 /* ---------------- Fullscreen game view ---------------- */
 .detail {
   position: fixed;

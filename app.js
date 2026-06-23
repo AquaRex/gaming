@@ -15,15 +15,38 @@ const MEDIA_BUCKET = 'game-media'
 
 // Defaults for the editable settings (see the Settings tab in admin mode).
 // These are used only if the `settings` row in Supabase hasn't been saved yet.
-//   main_audio_url:   the landing page shows RANDOM trailers (muted, blurred),
-//                     but its soundtrack comes from this one chosen video.
-//                     Blank = silent landing page. Browsers block autoplaying
-//                     sound until you interact, so it starts on first click/key.
-//   *_volume:         0–100.
+//   main_audio_tracks: the landing page shows RANDOM trailers (muted, blurred),
+//                      but its soundtrack comes from ONE randomly-chosen video in
+//                      this list, played at that track's own volume. Empty list =
+//                      silent landing page. Browsers block autoplaying sound until
+//                      you interact, so it starts on first click/key.
+//   *_volume:          0–100.
+const DEFAULT_AUDIO_TRACKS = [
+  { url: 'https://www.youtube.com/watch?v=PZS85WIejTg', volume: 100 },
+]
 const DEFAULT_SETTINGS = {
-  main_audio_url: 'https://www.youtube.com/watch?v=PZS85WIejTg',
-  main_audio_volume: 100, // SHARED (DB): background-music volume for the whole site
   volume: 100, // per-person (client): starting trailer volume until changed on a trailer
+}
+
+// Clamp anything to a valid 0–100 volume, defaulting to 100 when not a number.
+function clampVolume(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return 100
+  return Math.max(0, Math.min(100, Math.round(n)))
+}
+// Normalize a stored settings row into a clean track list. Falls back to the
+// legacy single url/volume columns for rows saved before the multi-track change.
+function normalizeAudioTracks(data) {
+  const raw = Array.isArray(data?.main_audio_tracks) ? data.main_audio_tracks : null
+  if (raw) {
+    return raw
+      .map((t) => ({ url: String(t?.url || '').trim(), volume: clampVolume(t?.volume) }))
+      .filter((t) => t.url)
+  }
+  if (data?.main_audio_url) {
+    return [{ url: String(data.main_audio_url).trim(), volume: clampVolume(data.main_audio_volume) }]
+  }
+  return []
 }
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -39,10 +62,10 @@ const state = {
   isAdmin: sessionStorage.getItem('gaming.admin') === '1',
   // Only the secondary password unlocks Settings.
   canSettings: sessionStorage.getItem('gaming.settings') === '1',
-  // Shared (from DB): which video the landing-page audio comes from + its volume.
+  // Shared (from DB): the list of landing-page audio tracks (each {url, volume}).
+  // One is chosen at random to play.
   settings: {
-    main_audio_url: DEFAULT_SETTINGS.main_audio_url,
-    main_audio_volume: DEFAULT_SETTINGS.main_audio_volume,
+    main_audio_tracks: DEFAULT_AUDIO_TRACKS.map((t) => ({ ...t })),
   },
   // Per-person (this browser only): one volume + mute shared by the background
   // music and the trailers. Whatever you set on a trailer's YouTube controls
@@ -292,10 +315,7 @@ async function fetchSettings() {
   try {
     const { data } = await db.from('settings').select('*').eq('id', 1).maybeSingle()
     if (data) {
-      state.settings = {
-        main_audio_url: data.main_audio_url ?? '',
-        main_audio_volume: data.main_audio_volume ?? DEFAULT_SETTINGS.main_audio_volume,
-      }
+      state.settings = { main_audio_tracks: normalizeAudioTracks(data) }
     }
   } catch {
     /* table missing or offline — keep defaults */
@@ -558,15 +578,28 @@ function startBackgroundTrailers() {
 }
 
 /* ============================================================
-   Main-page audio (one chosen video, played hidden)
+   Main-page audio (ONE randomly-chosen track from the list, played hidden)
    The blurred trailers above are silent; the soundtrack comes from here.
    ============================================================ */
 let mainAudioPlayer = null
 let audioUnlocked = false
+// Which track is currently playing, so the volume preview/apply targets it.
+let currentAudioId = null
+let currentAudioVolume = 100
+
+// Pick a random playable track from the list (skips entries with bad URLs).
+function pickAudioTrack() {
+  const tracks = (state.settings.main_audio_tracks || []).filter((t) => youTubeId(t.url))
+  if (!tracks.length) return null
+  return tracks[Math.floor(Math.random() * tracks.length)]
+}
 
 function startMainAudio() {
-  const id = youTubeId(state.settings.main_audio_url)
-  if (!id) return
+  const track = pickAudioTrack()
+  if (!track) return
+  const id = youTubeId(track.url)
+  currentAudioId = id
+  currentAudioVolume = clampVolume(track.volume)
 
   // A hidden player — no controls, invisible (but rendered so it still plays).
   // It's just the background music. Volume follows the client-side setting.
@@ -600,7 +633,7 @@ function startMainAudio() {
 function applyBgVolume() {
   const p = mainAudioPlayer
   if (!p || !p.setVolume) return
-  p.setVolume(state.settings.main_audio_volume) // site-wide background-music volume
+  p.setVolume(currentAudioVolume) // volume of the currently-playing track
   if (audioUnlocked) p.unMute()
   else p.mute() // stays muted until the first user gesture (autoplay policy)
 }
@@ -677,7 +710,7 @@ function renderTopControls() {
   const host = $('#topControls')
   host.innerHTML = ''
   if (state.isAdmin) {
-    host.append(
+    host.append(...[
       el('button', { class: 'btn btn-primary', onclick: () => openGameForm(null) }, '+ Add game'),
       state.canSettings
         ? el('button', { class: 'btn btn-ghost', onclick: openSettings }, 'Settings')
@@ -688,8 +721,8 @@ function renderTopControls() {
         state.isAdmin = false
         state.canSettings = false
         render()
-      } }, 'Exit admin')
-    )
+      } }, 'Exit admin'),
+    ].filter(Boolean))
   } else {
     host.append(el('button', { class: 'btn btn-ghost', onclick: openLogin }, 'Admin'))
   }
@@ -986,46 +1019,78 @@ function openLogin() {
 
 function openSettings() {
   openModal((modal, close) => {
-    const s = state.settings
+    // Work on a local copy of the track list; saved back on Save.
+    let tracks = (state.settings.main_audio_tracks || []).map((t) => ({ url: t.url, volume: clampVolume(t.volume) }))
+    if (!tracks.length) tracks = [{ url: '', volume: 100 }]
 
-    const audioUrl = el('input', {
-      value: s.main_audio_url || '',
-      placeholder: 'https://youtu.be/…  (blank = silent landing page)',
-    })
-    const thumb = el('div', { class: 'thumb-strip' })
-    const refreshThumb = () => {
-      thumb.innerHTML = ''
-      const t = thumbnailUrl(audioUrl.value)
-      if (t) thumb.append(el('img', { src: t, alt: 'audio video thumbnail' }))
+    const list = el('div', { class: 'audio-tracks' })
+    const renderTracks = () => {
+      list.innerHTML = ''
+      tracks.forEach((track, i) => {
+        const url = el('input', {
+          value: track.url,
+          placeholder: 'https://youtu.be/…  (YouTube URL)',
+        })
+        const thumb = el('div', { class: 'thumb-strip' })
+        const refreshThumb = () => {
+          thumb.innerHTML = ''
+          const t = thumbnailUrl(url.value)
+          if (t) thumb.append(el('img', { src: t, alt: 'audio video thumbnail' }))
+        }
+        url.addEventListener('input', () => { track.url = url.value; refreshThumb() })
+        refreshThumb()
+
+        // Per-track volume with a live read-out. If this track happens to be the
+        // one currently playing, preview the change on the running player too.
+        const readout = el('span', { class: 'hint', style: 'min-width:3.5ch' }, `${track.volume}%`)
+        const slider = el('input', { type: 'range', min: '0', max: '100', value: String(track.volume) })
+        slider.addEventListener('input', () => {
+          track.volume = Number(slider.value)
+          readout.textContent = `${slider.value}%`
+          if (mainAudioPlayer && mainAudioPlayer.setVolume && youTubeId(url.value) === currentAudioId) {
+            currentAudioVolume = track.volume
+            mainAudioPlayer.setVolume(track.volume)
+          }
+        })
+
+        const removeBtn = el('button', {
+          class: 'btn btn-ghost audio-track-remove', type: 'button', title: 'Remove track',
+          onclick: () => {
+            tracks.splice(i, 1)
+            if (!tracks.length) tracks.push({ url: '', volume: 100 })
+            renderTracks()
+          },
+        }, '×')
+
+        list.append(el('div', { class: 'audio-track' },
+          el('div', { class: 'audio-track-row' }, url, removeBtn),
+          thumb,
+          el('div', { class: 'field-row', style: 'align-items:center' }, slider, readout)))
+      })
     }
-    audioUrl.addEventListener('input', refreshThumb)
-    refreshThumb()
+    renderTracks()
 
-    // Background-music volume (shared site-wide). Live read-out + live preview.
-    const volReadout = el('span', { class: 'hint', style: 'min-width:3.5ch' }, `${s.main_audio_volume}%`)
-    const volSlider = el('input', {
-      type: 'range', min: '0', max: '100', value: String(s.main_audio_volume),
-    })
-    volSlider.addEventListener('input', () => {
-      volReadout.textContent = `${volSlider.value}%`
-      // Preview immediately on the running background player.
-      if (mainAudioPlayer && mainAudioPlayer.setVolume) mainAudioPlayer.setVolume(Number(volSlider.value))
-    })
+    const addBtn = el('button', {
+      class: 'btn btn-ghost', type: 'button',
+      onclick: () => { tracks.push({ url: '', volume: 100 }); renderTracks() },
+    }, '+ Add track')
 
     const errorText = el('div', { class: 'error-text hidden' })
     const showError = (msg) => { errorText.textContent = msg; errorText.classList.remove('hidden') }
 
     const saveBtn = el('button', { class: 'btn btn-primary' }, 'Save')
     saveBtn.addEventListener('click', async () => {
-      const url = audioUrl.value.trim()
-      if (url && !youTubeId(url)) return showError('That audio link doesn’t look like a YouTube URL.')
+      const clean = tracks
+        .map((t) => ({ url: (t.url || '').trim(), volume: clampVolume(t.volume) }))
+        .filter((t) => t.url)
+      for (const t of clean) {
+        if (!youTubeId(t.url)) return showError(`“${t.url}” doesn’t look like a YouTube URL.`)
+      }
       saveBtn.disabled = true
       errorText.classList.add('hidden')
-      const urlChanged = (url || '') !== (state.settings.main_audio_url || '')
       try {
-        await saveSettings({ main_audio_url: url || null, main_audio_volume: Number(volSlider.value) })
-        if (urlChanged) restartMainAudio() // new soundtrack
-        else applyBgVolume() // just apply the new volume
+        await saveSettings({ main_audio_tracks: clean })
+        restartMainAudio() // re-pick a random track from the new list
         close()
       } catch (err) {
         showError(err.message)
@@ -1035,9 +1100,9 @@ function openSettings() {
 
     modal.append(
       el('h2', {}, 'Settings'),
-      field('Landing-page audio (YouTube URL)', audioUrl, thumb,
-        el('div', { class: 'hint' }, 'Background visuals stay as random trailers from the list; this is just the soundtrack.')),
-      field('Background music volume', el('div', { class: 'field-row', style: 'align-items:center' }, volSlider, volReadout)),
+      field('Landing-page audio tracks',
+        el('div', { class: 'hint' }, 'One of these plays at random as the soundtrack, at its own volume. Background visuals stay as random trailers from the list.'),
+        list, addBtn),
       errorText,
       el('div', { class: 'modal-actions' },
         el('span'),
